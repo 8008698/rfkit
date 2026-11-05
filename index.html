@@ -466,6 +466,30 @@ textarea {
         <p class="note">
           यहाँबाट ट्रिगर गर्दा तपाईंको GitHub Repo मा <code>workflow_dispatch</code> सुरु हुनेछ (Ubuntu + Chromium + FFmpeg मार्फत पूर्ण 1080×1080 MP4 भिडियो बन्नेछ) र सम्पन्न हुनासाथ भिडियो डाउनलोड लिङ्क यहीँ देखिनेछ।
         </p>
+
+        <!-- EXISTING VIDEO AVAILABLE CARD -->
+        <div id="gh-existing-video-card" style="display:none;margin-top:14px;background:rgba(46,160,67,0.12);border:1px solid #2ea043;border-radius:8px;padding:14px" class="banner">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:24px">🎬</span>
+              <div>
+                <b id="gh-existing-title" style="color:#2ea043;font-size:15px">आजको भिडियो पहिले नै तयार छ!</b>
+                <div id="gh-existing-details" class="note" style="margin-top:3px;font-size:12px">
+                  नेपाल मिति: <b id="gh-existing-date">-</b> | आकार: <span id="gh-existing-size">-</span> | रिलिज: <span id="gh-existing-tag">-</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <a id="gh-existing-dl-btn" href="#" target="_blank" class="btn success" style="text-decoration:none;font-weight:bold;padding:9px 18px">
+                ⬇ तयार भएको भिडियो डाउनलोड गर्नुहोस् (MP4)
+              </a>
+              <button id="btn-force-rerender" type="button" class="btn" style="padding:9px 14px;background:var(--card);border:1px solid var(--border);cursor:pointer">
+                🔄 फेरि नयाँ बनाउनुहोस् (Force Re-render)
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="row" style="margin-top:12px">
           <div>
             <label>GitHub Repository (owner/repo)</label>
@@ -1287,6 +1311,9 @@ document.querySelectorAll(".nav-pill").forEach(btn => {
     document.querySelectorAll(".tab-pane").forEach(p => p.style.display = "none");
     btn.classList.add("active");
     $(btn.dataset.tab).style.display = "block";
+    if (btn.dataset.tab === "tab-github") {
+      checkExistingVideo();
+    }
   };
 });
 
@@ -1500,13 +1527,139 @@ function applyNepdateData(data) {
   init();
 }
 
+// NEPAL TIMEZONE HELPERS & GITHUB RELEASE CHECK
+function getNepalTodayIso() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kathmandu',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+}
+
+function getRelNepalDate(rel) {
+  const m = (rel.tag_name || "").match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+  if (m) {
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  const dtStr = rel.published_at || rel.created_at;
+  if (!dtStr) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kathmandu',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(dtStr));
+}
+
+let cachedReleaseForToday = null;
+
+async function checkExistingVideo() {
+  const repo = $("gh-repo") ? $("gh-repo").value.trim() : "8008698/rfkit";
+  const token = $("gh-token") ? $("gh-token").value.trim() : "";
+  const dateVal = $("in-ad-date") ? ($("in-ad-date").value || getNepalTodayIso()) : getNepalTodayIso();
+  const card = $("gh-existing-video-card");
+  const triggerBtn = $("btn-trigger-gh");
+  if (!card) return;
+
+  try {
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=30`, { headers });
+    if (!res.ok) return;
+
+    const releases = await res.json();
+    if (!Array.isArray(releases)) return;
+
+    // Find release matching target date in Nepal timezone or tag with valid mp4
+    const foundRel = releases.find(r => {
+      const relDate = getRelNepalDate(r);
+      const tag = r.tag_name || "";
+      const matchesDate = (relDate === dateVal) || tag.includes(dateVal);
+      const hasMp4 = (r.assets || []).some(a => a.name.toLowerCase().endsWith('.mp4'));
+      return matchesDate && hasMp4;
+    });
+
+    if (foundRel) {
+      cachedReleaseForToday = foundRel;
+      const asset = foundRel.assets.find(a => a.name.toLowerCase().endsWith('.mp4'));
+      const sizeMb = asset && asset.size ? (asset.size / (1024 * 1024)).toFixed(1) + ' MB' : '';
+      const isToday = (dateVal === getNepalTodayIso());
+
+      $("gh-existing-title").textContent = isToday 
+        ? "आजको भिडियो पहिले नै तयार छ!" 
+        : `मिति ${dateVal} को भिडियो तयार छ!`;
+      $("gh-existing-date").textContent = dateVal;
+      $("gh-existing-size").textContent = sizeMb;
+      $("gh-existing-tag").textContent = foundRel.tag_name || "-";
+      $("gh-existing-dl-btn").href = asset ? asset.browser_download_url : foundRel.html_url;
+      card.style.display = "flex";
+
+      if (triggerBtn) {
+        triggerBtn.textContent = "⚡ फेरि नयाँ भिडियो बनाउनुहोस् (Re-render Workflow)";
+      }
+    } else {
+      cachedReleaseForToday = null;
+      card.style.display = "none";
+      if (triggerBtn) {
+        triggerBtn.textContent = "⚡ GitHub Workflow सुरु गर्नुहोस् (Trigger Cloud Render)";
+      }
+    }
+  } catch(e) {
+    console.warn("Releases check failed:", e);
+  }
+}
+
+async function cleanOldReleasesClient(repo, token, targetDate) {
+  if (!token) return;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) return;
+    const releases = await res.json();
+    if (!Array.isArray(releases)) return;
+
+    for (const rel of releases) {
+      const relDate = getRelNepalDate(rel);
+      if (relDate && relDate !== targetDate) {
+        console.log(`[Client] Deleting old release: ${rel.tag_name} (${relDate})`);
+        await fetch(`https://api.github.com/repos/${repo}/releases/${rel.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+        }).catch(() => {});
+        await fetch(`https://api.github.com/repos/${repo}/git/refs/tags/${rel.tag_name}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+        }).catch(() => {});
+      }
+    }
+  } catch(e) {
+    console.warn("Client release cleanup error:", e);
+  }
+}
+
 // GITHUB ACTIONS WORKFLOW DISPATCH
-async function triggerGitHub() {
+async function triggerGitHub(force = false) {
   const repo = $("gh-repo").value.trim() || "8008698/rfkit";
   const token = $("gh-token").value.trim();
   const workflow = $("gh-workflow").value.trim() || "daily.yml";
   const branch = $("gh-branch").value.trim() || "main";
-  const dateVal = $("in-ad-date").value;
+  const dateVal = $("in-ad-date").value || getNepalTodayIso();
+  const nepalToday = getNepalTodayIso();
+
+  // If requested date is today (or matches existing video) and video exists, and not forced:
+  if (!force && cachedReleaseForToday && (dateVal === nepalToday || getRelNepalDate(cachedReleaseForToday) === dateVal)) {
+    const card = $("gh-existing-video-card");
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.outline = "2px solid #2ea043";
+      setTimeout(() => { card.style.outline = "none"; }, 2500);
+    }
+    alert("आजको भिडियो पहिले नै तयार छ! नयाँ workflow चलाउनु परेन।\n\nभिडियो डाउनलोड गर्न हरियो बटन 'तयार भएको भिडियो डाउनलोड गर्नुहोस्' थिच्नुहोस्।\n\nयदि फेरि नयाँ भिडियो बनाउन चाहनुहुन्छ भने 'फेरि नयाँ बनाउनुहोस्' बटन थिच्नुहोस्।");
+    return;
+  }
 
   if (!token) {
     alert("कृपया भिडियो बनाउन GitHub Personal Access Token प्रविष्ट गर्नुहोस्!");
@@ -1523,6 +1676,9 @@ async function triggerGitHub() {
   dlWrap.style.display = "none";
   statusTxt.textContent = "Workflow सुरु गर्दैछ (Triggering)...";
   statusLog.textContent = `Sending dispatch to GitHub: ${repo} (${workflow})...`;
+
+  // Attempt client-side cleanup of old releases if token has permission
+  cleanOldReleasesClient(repo, token, dateVal);
 
   try {
     const url = `https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`;
@@ -1546,14 +1702,14 @@ async function triggerGitHub() {
 
     statusTxt.textContent = "Workflow Queued (पर्खिँदै...)";
     statusLog.textContent = "Dispatch successful. Polling GitHub run status...";
-    pollWorkflow(repo, token);
+    pollWorkflow(repo, token, dateVal);
   } catch(e) {
     statusTxt.textContent = "त्रुटि (Failed)";
     statusLog.textContent = e.message;
   }
 }
 
-async function pollWorkflow(repo, token) {
+async function pollWorkflow(repo, token, dateVal) {
   const statusTxt = $("gh-status-text");
   const statusLog = $("gh-status-log");
   const dlWrap = $("gh-download-wrap");
@@ -1579,18 +1735,21 @@ async function pollWorkflow(repo, token) {
             statusLog.textContent = "भिडियो तयार भयो। तलको बटनबाट डाउनलोड गर्नुहोस्।";
             
             // Check latest release
-            const relRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=1`, {
+            const relRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=5`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             const relData = await relRes.json();
-            const asset = relData[0] && relData[0].assets && relData[0].assets[0];
+            const matchingRel = Array.isArray(relData) && (relData.find(r => getRelNepalDate(r) === dateVal || (r.tag_name || "").includes(dateVal)) || relData[0]);
+            const asset = matchingRel && matchingRel.assets && matchingRel.assets.find(a => a.name.toLowerCase().endsWith('.mp4'));
             if (asset && asset.browser_download_url) {
               dlLink.href = asset.browser_download_url;
+              dlLink.textContent = "⬇ भिडियो डाउनलोड गर्नुहोस् (MP4)";
             } else {
               dlLink.href = run.html_url;
               dlLink.textContent = "GitHub Artifacts हेर्नुहोस्";
             }
             dlWrap.style.display = "block";
+            checkExistingVideo();
           } else {
             statusTxt.textContent = `Failed (${run.conclusion})`;
             statusLog.textContent = `विवरण: ${run.html_url}`;
@@ -1669,8 +1828,12 @@ $("in-source-mode").onchange = e => {
   $("file-upload-row").style.display = e.target.value === "local_file" ? "block" : "none";
 };
 $("btn-set-today").onclick = () => {
-  $("in-ad-date").value = new Date().toISOString().split("T")[0];
+  $("in-ad-date").value = getNepalTodayIso();
   fetchData();
+  checkExistingVideo();
+};
+$("in-ad-date").onchange = () => {
+  checkExistingVideo();
 };
 $("in-local-file").onchange = e => {
   const file = e.target.files[0];
@@ -1688,7 +1851,9 @@ $("in-local-file").onchange = e => {
     reader.readAsText(file);
   }
 };
-$("btn-trigger-gh").onclick = triggerGitHub;
+$("btn-trigger-gh").onclick = () => triggerGitHub(false);
+const btnForce = $("btn-force-rerender");
+if (btnForce) btnForce.onclick = () => triggerGitHub(true);
 $("btn-browser-render").onclick = startBrowserRender;
 $("theme-btn").onclick = () => {
   const curr = document.documentElement.getAttribute("data-theme");
@@ -1696,12 +1861,13 @@ $("theme-btn").onclick = () => {
 };
 
 // INITIAL LOAD
-$("in-ad-date").value = new Date().toISOString().split("T")[0];
+$("in-ad-date").value = getNepalTodayIso();
 $("gh-repo").value = "8008698/rfkit";
 $("gh-token").value = "";
 
 init();
 pingApiHealth();
+checkExistingVideo();
 </script>
 </body>
 </html>

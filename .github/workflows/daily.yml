@@ -47,10 +47,19 @@ jobs:
           fi
           python daily.py --out videos $ARGS
       - id: stamp
-        run: echo "d=$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            TARGET_DATE="${{ github.event.inputs.date }}"
+          else
+            TARGET_DATE=$(TZ="Asia/Kathmandu" date +%Y-%m-%d)
+          fi
+          STAMP=$(TZ="Asia/Kathmandu" date +%Y%m%d-%H%M)
+          echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
+          echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
       - name: Clean up old videos if date is not today Nepal date
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_DATE: ${{ steps.stamp.outputs.target_date }}
         run: |
           python cleanup_old_releases.py
       - uses: actions/upload-artifact@v4
@@ -61,6 +70,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: daily-${{ steps.stamp.outputs.d }}
-          name: आजको राशिफल भिडियो (${{ steps.stamp.outputs.d }})
+          tag_name: rashifal-${{ steps.stamp.outputs.target_date }}
+          name: आजको राशिफल भिडियो (${{ steps.stamp.outputs.target_date }})
           files: videos/*.mp4

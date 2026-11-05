@@ -28,14 +28,19 @@ jobs:
           name: rashifal-video
           path: videos/*.mp4
           retention-days: 14
+      - id: stamp
+        run: |
+          TARGET_DATE=$(TZ="Asia/Kathmandu" date +%Y-%m-%d)
+          echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
       - name: Clean up old videos if date is not today Nepal date
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_DATE: ${{ steps.stamp.outputs.target_date }}
         run: |
           python cleanup_old_releases.py
       - name: Publish as release (phone-friendly download link)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: video-${{ github.run_number }}
-          name: राशिफल भिडियो #${{ github.run_number }}
+          tag_name: rashifal-${{ steps.stamp.outputs.target_date }}
+          name: आजको राशिफल भिडियो (${{ steps.stamp.outputs.target_date }})
           files: videos/*.mp4
