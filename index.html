@@ -1519,10 +1519,15 @@ async function pingApiHealth() {
   }
 }
 
-async function fetchData() {
+async function fetchData(silent = false) {
   const mode = $("in-source-mode").value;
   const dateVal = $("in-ad-date").value;
   const btn = $("btn-fetch-top");
+
+  if (mode === "local_file") {
+    if (!silent) alert("स्थानीय फाइल मोड सक्रिय छ। कृपया तल फाइल छान्नुहोस्।");
+    return;
+  }
 
   btn.disabled = true;
   btn.textContent = "तान्दैछ (Fetching)...";
@@ -1542,10 +1547,19 @@ async function fetchData() {
 
     if (rawData) {
       applyNepdateData(rawData);
-      alert("सफल: ताजा राशिफल डाटा लोड भयो!");
+      if (typeof updateLocalDurationEstimate === "function") {
+        updateLocalDurationEstimate();
+      }
+      if (!silent) {
+        alert("सफल: ताजा राशिफल डाटा लोड भयो!");
+      }
     }
   } catch(err) {
-    alert("डेटा तान्न सकिएन: " + err.message);
+    if (!silent) {
+      alert("डेटा तान्न सकिएन: " + err.message);
+    } else {
+      console.warn("Auto-fetch error:", err);
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = "ताजा डेटा तान्नुहोस् (Fetch)";
@@ -2072,18 +2086,21 @@ async function startBrowserRender() {
 }
 
 // LISTENERS SETUP
-$("btn-fetch-top").onclick = fetchData;
+$("btn-fetch-top").onclick = () => {
+  fetchData(false);
+  checkExistingVideo();
+};
 $("in-source-mode").onchange = e => {
   $("file-upload-row").style.display = e.target.value === "local_file" ? "block" : "none";
 };
 $("btn-set-today").onclick = () => {
   $("in-ad-date").value = getNepalTodayIso();
-  fetchData();
+  fetchData(true);
   checkExistingVideo();
 };
 $("in-ad-date").onchange = () => {
+  fetchData(true);
   checkExistingVideo();
-  renderReleasesList(allLoadedReleases);
 };
 $("in-local-file").onchange = e => {
   const file = e.target.files[0];
@@ -2120,6 +2137,7 @@ $("gh-token").value = "";
 init();
 initLocalRashiControls();
 pingApiHealth();
+fetchData(true);
 checkExistingVideo();
 </script>
 </body>
