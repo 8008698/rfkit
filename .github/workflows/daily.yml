@@ -1,0 +1,61 @@
+name: Daily Rashifal video
+on:
+  schedule:
+    - cron: "30 23 * * *"   # नेपाली समय बिहान ५:१५ (UTC २३:३०)
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "AD मिति YYYY-MM-DD (खाली भए आजको मिति)"
+        required: false
+        default: ""
+      only:
+        description: "छानिएका राशिहरू मात्र (जस्तै: 1 2)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system dependencies & Devanagari fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-cjk
+      - name: Install Python dependencies
+        run: |
+          pip install playwright numpy scipy nepali-datetime
+          python -m playwright install --with-deps chromium
+      - name: Fetch today's rashifal and render
+        env:
+          NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
+          NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
+          fi
+          if [ -n "${{ github.event.inputs.only }}" ]; then
+            ARGS="$ARGS --only ${{ github.event.inputs.only }}"
+          fi
+          python daily.py --out videos $ARGS
+      - id: stamp
+        run: echo "d=$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rashifal-video
+          path: videos/*.mp4
+          retention-days: 14
+      - uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: daily-${{ steps.stamp.outputs.d }}
+          name: आजको राशिफल भिडियो (${{ steps.stamp.outputs.d }})
+          files: videos/*.mp4

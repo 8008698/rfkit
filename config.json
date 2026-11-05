@@ -1,0 +1,23 @@
+{
+  "_note": "NepDate राशिफल भिडियो किट कन्फिगरेसन। निःशुल्क AI endpoint ले कुनै API key नचाहिने गरी काम गर्छ।",
+  "api": {
+    "url": "https://nepdate-api.khumnath.com.np/api/ai/today?rashifal=true&date={ad}",
+    "signs_path": "",
+    "match": "",
+    "fields": {
+      "text": "prediction",
+      "letters": "syllables",
+      "stars": "rating",
+      "colorName": "shubhaColor",
+      "number": "shubhaNumber"
+    }
+  },
+  "intro": {
+    "prefix": "आज",
+    "lines": [
+      "नेपडेट पात्रोले तयार पारेको आजको राशिफलमा स्वागत छ।",
+      "भिडियो अन्त्यसम्म हेर्नुहोला।"
+    ]
+  },
+  "tagline": "हरेक दिनको विश्वास"
+}

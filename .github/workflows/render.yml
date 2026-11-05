@@ -1,0 +1,36 @@
+name: Render Rashifal video
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "केही राशि मात्र (खाली छोडे सबै), जस्तै: 1 2"
+        required: false
+        default: ""
+  push:
+    paths: ["content.json"]
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-core
+      - run: pip install playwright numpy scipy && python -m playwright install --with-deps chromium
+      - name: Render
+        run: python render.py content.json --out videos ${{ github.event.inputs.only && format('--only {0}', github.event.inputs.only) || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rashifal-video
+          path: videos/*.mp4
+          retention-days: 14
+      - name: Publish as release (phone-friendly download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: video-${{ github.run_number }}
+          name: राशिफल भिडियो #${{ github.run_number }}
+          files: videos/*.mp4
