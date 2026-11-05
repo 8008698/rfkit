@@ -21,4 +21,8 @@ node_modules/
 .DS_Store
 *.swp
 *.swo
+brother-pc-handover/
+brother-pc-handover.zip
+*.key
+*.pem
 
