@@ -1,15 +1,11 @@
 name: Daily Rashifal video
 on:
   schedule:
-    - cron: "30 23 * * *"   # नेपाली समय बिहान ५:१५ (UTC २३:३०)
+    - cron: "15 23 * * *"   # नेपाली समय बिहान ५:०० बजे (UTC २३:१५)
   workflow_dispatch:
     inputs:
       date:
         description: "AD मिति YYYY-MM-DD (खाली भए आजको मिति)"
-        required: false
-        default: ""
-      only:
-        description: "छानिएका राशिहरू मात्र (जस्तै: 1 2)"
         required: false
         default: ""
 
@@ -33,7 +29,7 @@ jobs:
         run: |
           pip install playwright numpy scipy nepali-datetime
           python -m playwright install --with-deps chromium
-      - name: Fetch today's rashifal and render
+      - name: Fetch today's rashifal and render full 12 rashi video
         env:
           NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
           NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
@@ -41,9 +37,6 @@ jobs:
           ARGS=""
           if [ -n "${{ github.event.inputs.date }}" ]; then
             ARGS="$ARGS --date ${{ github.event.inputs.date }}"
-          fi
-          if [ -n "${{ github.event.inputs.only }}" ]; then
-            ARGS="$ARGS --only ${{ github.event.inputs.only }}"
           fi
           python daily.py --out videos $ARGS
       - id: stamp

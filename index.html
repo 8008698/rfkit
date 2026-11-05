@@ -490,6 +490,17 @@ textarea {
           </div>
         </div>
 
+        <!-- AVAILABLE RELEASES LIST -->
+        <div id="gh-releases-box" style="margin-top:14px;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <b style="font-size:13px;color:var(--tx)">📁 GitHub मा उपलब्ध भिडियोहरू (Available Releases)</b>
+            <button type="button" id="btn-refresh-releases" class="btn" style="padding:3px 8px;font-size:11px">🔄 सूची ताजा गर्नुहोस्</button>
+          </div>
+          <div id="gh-releases-list" style="font-size:12px">
+            <span class="note">भिडियोहरूको सूची तान्दैछ...</span>
+          </div>
+        </div>
+
         <div class="row" style="margin-top:12px">
           <div>
             <label>GitHub Repository (owner/repo)</label>
@@ -516,6 +527,9 @@ textarea {
             ⚡ GitHub Workflow सुरु गर्नुहोस् (Trigger Cloud Render)
           </button>
         </div>
+        <p class="note" style="margin-top:8px;text-align:center">
+          ℹ️ GitHub Actions बाट सधैं पूरा १२ राशिको भिडियो (इन्ट्रो र आउट्रो सहित) बन्दछ।
+        </p>
 
         <div id="gh-status-box" style="display:none;margin-top:16px" class="banner">
           <div>
@@ -534,8 +548,58 @@ textarea {
       <div id="tab-browser" class="tab-pane" style="display:none">
         <h2>ब्राउजरमै भिडियो बनाउनुहोस् (Browser Client-Side Render)</h2>
         <p class="note">
-          कुनै सर्भर वा बाह्य FFmpeg सफ्टवेयर आवश्यक पर्दैन। तपाईंको ब्राउजरको क्यानभास र MediaRecorder प्रयोग गरी सिधै भिडियो तयार हुन्छ।
+          कुनै सर्भर वा बाह्य FFmpeg सफ्टवेयर आवश्यक पर्दैन। तपाईंको ब्राउजरको क्यानभास र MediaRecorder प्रयोग गरी सिधै भिडियो तयार हुन्छ। स्थानीय रूपमा राशि र स्क्रिनहरू छनोट गर्न सकिन्छ।
         </p>
+
+        <!-- LOCAL RASHI & SCREEN CONTROLS -->
+        <div style="margin-top:14px;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:14px">
+          <div class="row">
+            <div>
+              <label>राशि छनोट मोड (Rashi Selection)</label>
+              <select id="local-rashi-mode">
+                <option value="all" selected>सबै १२ राशि (All 12 Signs)</option>
+                <option value="custom">छानिएका राशिहरू मात्र (Select Specific Signs)</option>
+              </select>
+            </div>
+            <div>
+              <label>अनुमानित भिडियो लम्बाइ (Estimated Duration)</label>
+              <div id="local-est-duration" style="font-size:14px;font-weight:700;color:var(--ac);padding:8px 0">-</div>
+            </div>
+          </div>
+
+          <!-- 12 RASHI CHECKBOX GRID (Visible when 'custom' is selected) -->
+          <div id="local-rashi-grid-wrap" style="display:none;margin-top:12px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font-size:12px;font-weight:600">कुन-कुन राशि समावेश गर्ने?</span>
+              <div style="display:flex;gap:6px">
+                <button type="button" id="btn-local-sel-all" class="btn" style="padding:2px 8px;font-size:11px">सबै छान्नुहोस्</button>
+                <button type="button" id="btn-local-clr-all" class="btn" style="padding:2px 8px;font-size:11px">सबै हटाउनुहोस्</button>
+              </div>
+            </div>
+            <div id="local-rashi-checkboxes" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));gap:6px">
+              <!-- populated in JS -->
+            </div>
+          </div>
+
+          <!-- INTRO / OUTRO TOGGLES -->
+          <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" id="local-opt-intro" checked>
+              <span>इन्ट्रो स्वागत स्क्रिन (Intro Screen)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" id="local-opt-outro" checked>
+              <span>आउट्रो लोगो स्क्रिन (Outro Logo Screen)</span>
+            </label>
+          </div>
+
+          <div style="margin-top:10px">
+            <button type="button" id="btn-preview-local-sel" class="btn" style="padding:6px 12px;font-size:12px">
+              👁️ छानिएको अनुसार पूर्वावलोकन हेर्नुहोस् (Preview Selection)
+            </button>
+          </div>
+        </div>
+
         <div class="row" style="margin-top:12px">
           <div>
             <label>Frame Rate (FPS)</label>
@@ -1553,6 +1617,68 @@ function getRelNepalDate(rel) {
 }
 
 let cachedReleaseForToday = null;
+let allLoadedReleases = [];
+
+const RASHI_NAMES = ["मेष", "वृष", "मिथुन", "कर्कट", "सिंह", "कन्या", "तुला", "वृश्चिक", "धनु", "मकर", "कुम्भ", "मीन"];
+
+function renderReleasesList(releases) {
+  const container = $("gh-releases-list");
+  if (!container) return;
+
+  if (!releases || !releases.length) {
+    container.innerHTML = `<div class="note" style="padding:6px 0">कुनै भिडियो भेटिएन।</div>`;
+    return;
+  }
+
+  const todayIso = getNepalTodayIso();
+  const selectedDate = $("in-ad-date") ? ($("in-ad-date").value || todayIso) : todayIso;
+
+  let html = `<div style="display:flex;flex-direction:column;gap:8px">`;
+  let count = 0;
+  releases.forEach(rel => {
+    const relDate = getRelNepalDate(rel) || "-";
+    const asset = (rel.assets || []).find(a => a.name.toLowerCase().endsWith('.mp4'));
+    if (!asset) return;
+    count++;
+
+    const sizeMb = asset.size ? (asset.size / (1024 * 1024)).toFixed(1) + " MB" : "";
+    const isToday = (relDate === todayIso);
+    const isFuture = (relDate > todayIso);
+    const isSelected = (relDate === selectedDate);
+
+    let badge = "";
+    if (isToday) badge = `<span style="background:#2ea043;color:#fff;padding:2px 7px;border-radius:12px;font-size:11px;font-weight:700">आजको भिडियो</span>`;
+    else if (isFuture) badge = `<span style="background:#8b2fe0;color:#fff;padding:2px 7px;border-radius:12px;font-size:11px;font-weight:700">भविष्य (अग्रिम)</span>`;
+    else badge = `<span style="background:var(--mu);color:#fff;padding:2px 7px;border-radius:12px;font-size:11px">विगत</span>`;
+
+    const highlightStyle = isSelected 
+      ? `border:1.5px solid #2ea043;background:rgba(46,160,67,0.08);` 
+      : `border:1px solid var(--bd);background:var(--bg);`;
+
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:6px;${highlightStyle}">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${badge}
+          <div>
+            <b>${relDate}</b>
+            <span class="note" style="margin-left:6px">(${rel.tag_name || ""}${sizeMb ? ' · ' + sizeMb : ''})</span>
+            ${isSelected ? '<span style="color:#2ea043;font-size:11px;font-weight:700;margin-left:6px">✓ हाल छानिएको</span>' : ''}
+          </div>
+        </div>
+        <a href="${asset.browser_download_url}" target="_blank" class="btn success" style="padding:4px 12px;font-size:12px;text-decoration:none;font-weight:600">
+          ⬇ डाउनलोड (MP4)
+        </a>
+      </div>
+    `;
+  });
+
+  if (!count) {
+    container.innerHTML = `<div class="note" style="padding:6px 0">कुनै MP4 भिडियो भेटिएन।</div>`;
+    return;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
 
 async function checkExistingVideo() {
   const repo = $("gh-repo") ? $("gh-repo").value.trim() : "8008698/rfkit";
@@ -1560,7 +1686,6 @@ async function checkExistingVideo() {
   const dateVal = $("in-ad-date") ? ($("in-ad-date").value || getNepalTodayIso()) : getNepalTodayIso();
   const card = $("gh-existing-video-card");
   const triggerBtn = $("btn-trigger-gh");
-  if (!card) return;
 
   try {
     const headers = { 'Accept': 'application/vnd.github.v3+json' };
@@ -1572,6 +1697,9 @@ async function checkExistingVideo() {
     const releases = await res.json();
     if (!Array.isArray(releases)) return;
 
+    allLoadedReleases = releases;
+    renderReleasesList(releases);
+
     // Find release matching target date in Nepal timezone or tag with valid mp4
     const foundRel = releases.find(r => {
       const relDate = getRelNepalDate(r);
@@ -1581,15 +1709,16 @@ async function checkExistingVideo() {
       return matchesDate && hasMp4;
     });
 
-    if (foundRel) {
+    if (foundRel && card) {
       cachedReleaseForToday = foundRel;
       const asset = foundRel.assets.find(a => a.name.toLowerCase().endsWith('.mp4'));
       const sizeMb = asset && asset.size ? (asset.size / (1024 * 1024)).toFixed(1) + ' MB' : '';
       const isToday = (dateVal === getNepalTodayIso());
+      const isFuture = (dateVal > getNepalTodayIso());
 
       $("gh-existing-title").textContent = isToday 
         ? "आजको भिडियो पहिले नै तयार छ!" 
-        : `मिति ${dateVal} को भिडियो तयार छ!`;
+        : (isFuture ? `भविष्यको मिति ${dateVal} को भिडियो तयार छ!` : `मिति ${dateVal} को भिडियो तयार छ!`);
       $("gh-existing-date").textContent = dateVal;
       $("gh-existing-size").textContent = sizeMb;
       $("gh-existing-tag").textContent = foundRel.tag_name || "-";
@@ -1601,7 +1730,7 @@ async function checkExistingVideo() {
       }
     } else {
       cachedReleaseForToday = null;
-      card.style.display = "none";
+      if (card) card.style.display = "none";
       if (triggerBtn) {
         triggerBtn.textContent = "⚡ GitHub Workflow सुरु गर्नुहोस् (Trigger Cloud Render)";
       }
@@ -1621,10 +1750,12 @@ async function cleanOldReleasesClient(repo, token, targetDate) {
     const releases = await res.json();
     if (!Array.isArray(releases)) return;
 
+    const todayNepal = getNepalTodayIso();
     for (const rel of releases) {
       const relDate = getRelNepalDate(rel);
-      if (relDate && relDate !== targetDate) {
-        console.log(`[Client] Deleting old release: ${rel.tag_name} (${relDate})`);
+      // नियम: विगतका मितिका भिडियोहरू मात्र मेट्ने (< todayNepal)। आजको र भविष्यको भिडियो सधैं सुरक्षित राख्ने!
+      if (relDate && relDate < todayNepal && relDate !== targetDate) {
+        console.log(`[Client] Deleting past release: ${rel.tag_name} (${relDate})`);
         await fetch(`https://api.github.com/repos/${repo}/releases/${rel.id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
@@ -1640,6 +1771,104 @@ async function cleanOldReleasesClient(repo, token, targetDate) {
   }
 }
 
+// LOCAL RASHI & SCREEN CONTROLS
+function initLocalRashiControls() {
+  const container = $("local-rashi-checkboxes");
+  if (!container) return;
+
+  container.innerHTML = RASHI_NAMES.map((name, i) => `
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;background:var(--card);padding:5px 8px;border-radius:5px;border:1px solid var(--bd)">
+      <input type="checkbox" class="local-rashi-cb" data-idx="${i}" checked>
+      <span>${i + 1}. ${name}</span>
+    </label>
+  `).join("");
+
+  document.querySelectorAll(".local-rashi-cb").forEach(cb => {
+    cb.onchange = updateLocalDurationEstimate;
+  });
+
+  const modeSel = $("local-rashi-mode");
+  if (modeSel) {
+    modeSel.onchange = () => {
+      $("local-rashi-grid-wrap").style.display = modeSel.value === "custom" ? "block" : "none";
+      updateLocalDurationEstimate();
+    };
+  }
+
+  const btnSelAll = $("btn-local-sel-all");
+  if (btnSelAll) {
+    btnSelAll.onclick = () => {
+      document.querySelectorAll(".local-rashi-cb").forEach(cb => cb.checked = true);
+      updateLocalDurationEstimate();
+    };
+  }
+
+  const btnClrAll = $("btn-local-clr-all");
+  if (btnClrAll) {
+    btnClrAll.onclick = () => {
+      document.querySelectorAll(".local-rashi-cb").forEach(cb => cb.checked = false);
+      updateLocalDurationEstimate();
+    };
+  }
+
+  const introToggle = $("local-opt-intro");
+  if (introToggle) introToggle.onchange = updateLocalDurationEstimate;
+
+  const outroToggle = $("local-opt-outro");
+  if (outroToggle) outroToggle.onchange = updateLocalDurationEstimate;
+
+  const btnPreviewLocal = $("btn-preview-local-sel");
+  if (btnPreviewLocal) {
+    btnPreviewLocal.onclick = () => {
+      const opts = getLocalBuildOpts();
+      if (!opts.subset.length) {
+        alert("कृपया कम्तिमा एउटा राशि छान्नुहोस्!");
+        return;
+      }
+      const r = RV.build(C, ASSETS, opts);
+      T = r.T;
+      $("sc").max = T;
+      paused = false;
+      fr.srcdoc = RV.doc(r);
+      fit();
+    };
+  }
+
+  updateLocalDurationEstimate();
+}
+
+function getLocalBuildOpts() {
+  const mode = $("local-rashi-mode") ? $("local-rashi-mode").value : "all";
+  let subset = [];
+  if (mode === "all") {
+    subset = [...Array(12).keys()];
+  } else {
+    document.querySelectorAll(".local-rashi-cb").forEach(cb => {
+      if (cb.checked) subset.push(+cb.dataset.idx);
+    });
+  }
+  const intro = $("local-opt-intro") ? $("local-opt-intro").checked : true;
+  const outro = $("local-opt-outro") ? $("local-opt-outro").checked : true;
+  return { subset, intro, outro };
+}
+
+function updateLocalDurationEstimate() {
+  const durLabel = $("local-est-duration");
+  if (!durLabel) return;
+  const opts = getLocalBuildOpts();
+  if (!opts.subset.length) {
+    durLabel.textContent = "० सेकेन्ड (कुनै राशि छानिएन)";
+    return;
+  }
+  try {
+    const r = RV.build(C, ASSETS, opts);
+    const secs = Math.round(r.T);
+    durLabel.textContent = `${secs} सेकेन्ड (${(secs / 60).toFixed(1)} मिनेट) · ${opts.subset.length} राशि`;
+  } catch(e) {
+    durLabel.textContent = "-";
+  }
+}
+
 // GITHUB ACTIONS WORKFLOW DISPATCH
 async function triggerGitHub(force = false) {
   const repo = $("gh-repo").value.trim() || "8008698/rfkit";
@@ -1649,15 +1878,25 @@ async function triggerGitHub(force = false) {
   const dateVal = $("in-ad-date").value || getNepalTodayIso();
   const nepalToday = getNepalTodayIso();
 
-  // If requested date is today (or matches existing video) and video exists, and not forced:
-  if (!force && cachedReleaseForToday && (dateVal === nepalToday || getRelNepalDate(cachedReleaseForToday) === dateVal)) {
+  // If requested date has existing video and not forced:
+  const foundExisting = allLoadedReleases.find(r => {
+    const relDate = getRelNepalDate(r);
+    const tag = r.tag_name || "";
+    return ((relDate === dateVal) || tag.includes(dateVal)) && (r.assets || []).some(a => a.name.toLowerCase().endsWith('.mp4'));
+  });
+
+  if (!force && foundExisting) {
     const card = $("gh-existing-video-card");
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       card.style.outline = "2px solid #2ea043";
       setTimeout(() => { card.style.outline = "none"; }, 2500);
     }
-    alert("आजको भिडियो पहिले नै तयार छ! नयाँ workflow चलाउनु परेन।\n\nभिडियो डाउनलोड गर्न हरियो बटन 'तयार भएको भिडियो डाउनलोड गर्नुहोस्' थिच्नुहोस्।\n\nयदि फेरि नयाँ भिडियो बनाउन चाहनुहुन्छ भने 'फेरि नयाँ बनाउनुहोस्' बटन थिच्नुहोस्।");
+    const isToday = (dateVal === nepalToday);
+    const msg = isToday 
+      ? "आजको भिडियो पहिले नै तयार छ! नयाँ workflow चलाउनु परेन।\n\nभिडियो डाउनलोड गर्न 'तयार भएको भिडियो डाउनलोड गर्नुहोस्' वा तलको सूचीबाट थिच्नुहोस्।\n\nयदि फेरि नयाँ भिडियो बनाउन चाहनुहुन्छ भने 'फेरि नयाँ बनाउनुहोस्' बटन थिच्नुहोस्।"
+      : `मिति ${dateVal} को भिडियो पहिले नै उपलब्ध छ!\n\nडाउनलोड गर्न 'डाउनलोड (MP4)' बटन थिच्नुहोस्। यदि परिमार्जन गरी फेरि नयाँ बनाउन चाहनुहुन्छ भने 'फेरि नयाँ बनाउनुहोस्' बटन थिच्नुहोस्।`;
+    alert(msg);
     return;
   }
 
@@ -1677,7 +1916,7 @@ async function triggerGitHub(force = false) {
   statusTxt.textContent = "Workflow सुरु गर्दैछ (Triggering)...";
   statusLog.textContent = `Sending dispatch to GitHub: ${repo} (${workflow})...`;
 
-  // Attempt client-side cleanup of old releases if token has permission
+  // Attempt client-side cleanup of past releases
   cleanOldReleasesClient(repo, token, dateVal);
 
   try {
@@ -1735,7 +1974,7 @@ async function pollWorkflow(repo, token, dateVal) {
             statusLog.textContent = "भिडियो तयार भयो। तलको बटनबाट डाउनलोड गर्नुहोस्।";
             
             // Check latest release
-            const relRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=5`, {
+            const relRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=10`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             const relData = await relRes.json();
@@ -1764,7 +2003,7 @@ async function pollWorkflow(repo, token, dateVal) {
   }, 5000);
 }
 
-// BROWSER RENDERER
+// BROWSER RENDERER (CLIENT-SIDE)
 async function startBrowserRender() {
   const btn = $("btn-browser-render");
   const pBox = $("browser-progress-box");
@@ -1773,13 +2012,20 @@ async function startBrowserRender() {
   const dlWrap = $("browser-download-wrap");
   const dlLink = $("browser-download-link");
 
+  const localOpts = getLocalBuildOpts();
+  if (!localOpts.subset.length) {
+    alert("कृपया कम्तिमा एउटा राशि छान्नुहोस्!");
+    return;
+  }
+
   btn.disabled = true;
   pBox.style.display = "block";
   dlWrap.style.display = "none";
 
   const fps = +$("browser-fps").value || 20;
   const fmt = $("browser-format").value;
-  const T = RV.build(C, ASSETS, mopts()).T;
+  const r = RV.build(C, ASSETS, localOpts);
+  const T = r.T;
   const frames = Math.floor(T * fps);
 
   const canvas = document.createElement("canvas");
@@ -1798,7 +2044,10 @@ async function startBrowserRender() {
     const blob = new Blob(chunks, { type: rec.mimeType });
     const url = URL.createObjectURL(blob);
     dlLink.href = url;
-    dlLink.download = `NepDate_Rashifal_${C.date.year}-${C.date.month}-${C.date.day}.${fmt === 'mp4' ? 'mp4' : 'webm'}`;
+    const rashiSuffix = localOpts.subset.length === 12 
+      ? "all" 
+      : (localOpts.subset.length === 1 ? RASHI_NAMES[localOpts.subset[0]] : localOpts.subset.map(x=>x+1).join("-"));
+    dlLink.download = `NepDate_Rashifal_${C.date.year}-${C.date.month}-${C.date.day}_${rashiSuffix}.${fmt === 'mp4' ? 'mp4' : 'webm'}`;
     dlWrap.style.display = "block";
     btn.disabled = false;
     $("browser-status-msg").textContent = "सम्पन्न भयो!";
@@ -1834,6 +2083,7 @@ $("btn-set-today").onclick = () => {
 };
 $("in-ad-date").onchange = () => {
   checkExistingVideo();
+  renderReleasesList(allLoadedReleases);
 };
 $("in-local-file").onchange = e => {
   const file = e.target.files[0];
@@ -1854,6 +2104,8 @@ $("in-local-file").onchange = e => {
 $("btn-trigger-gh").onclick = () => triggerGitHub(false);
 const btnForce = $("btn-force-rerender");
 if (btnForce) btnForce.onclick = () => triggerGitHub(true);
+const btnRefreshReleases = $("btn-refresh-releases");
+if (btnRefreshReleases) btnRefreshReleases.onclick = () => checkExistingVideo();
 $("btn-browser-render").onclick = startBrowserRender;
 $("theme-btn").onclick = () => {
   const curr = document.documentElement.getAttribute("data-theme");
@@ -1866,6 +2118,7 @@ $("gh-repo").value = "8008698/rfkit";
 $("gh-token").value = "";
 
 init();
+initLocalRashiControls();
 pingApiHealth();
 checkExistingVideo();
 </script>

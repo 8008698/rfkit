@@ -5,16 +5,18 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 def main():
-    # 1. Determine target date in Nepal timezone (default: today in Nepal)
+    # 1. Determine today and target date in Nepal timezone
+    today_nepal = datetime.now(ZoneInfo("Asia/Kathmandu")).date()
     target_date_env = os.environ.get("TARGET_DATE", "").strip()
     if target_date_env:
         try:
             target_nepal = datetime.fromisoformat(target_date_env).date()
         except Exception:
-            target_nepal = datetime.now(ZoneInfo("Asia/Kathmandu")).date()
+            target_nepal = today_nepal
     else:
-        target_nepal = datetime.now(ZoneInfo("Asia/Kathmandu")).date()
+        target_nepal = today_nepal
 
+    print(f"आजको नेपाल मिति (Today in Nepal): {today_nepal}")
     print(f"लक्षित नेपाल मिति (Target date in Nepal): {target_nepal}")
 
     # 2. Get repository and token from environment
@@ -68,9 +70,17 @@ def main():
 
         print(f"- Release: {tag} | मिति (नेपाल): {rel_date_nepal}")
 
-        # If date does not match target Nepal date, delete the release & tag
-        if rel_date_nepal and rel_date_nepal != target_nepal:
-            print(f"  -> पुरानो मितिको भिडियो भेटियो ({rel_date_nepal} != {target_nepal})। हटाउँदै: {tag} (ID: {rel_id})")
+        # नियम (Deletion rules):
+        # १. विगतका मितिका भिडियोहरू (rel_date_nepal < today_nepal) मात्र पुराना मानिन्छन् र मेटाइन्छन्।
+        # २. आजको भिडियो (rel_date_nepal == today_nepal) कहिल्यै मेटिँदैन (भविष्यको मितिको भिडियो बनाउँदा पनि आजको सुरक्षित रहन्छ)।
+        # ३. भविष्यका मितिका अग्रिम भिडियोहरू (rel_date_nepal > today_nepal) पनि सुरक्षित राखिन्छन्।
+        # ४. यदि लक्षित मितिकै पुरानो डुप्लिकेट ट्याग (जस्तै 'video-...') छ भने हटाएर नयाँ ट्याग राखिन्छ।
+        is_past = (rel_date_nepal and rel_date_nepal < today_nepal and rel_date_nepal != target_nepal)
+        is_obsolete_duplicate = (rel_date_nepal == target_nepal and tag and not tag.startswith(f"rashifal-{target_nepal}"))
+
+        if is_past or is_obsolete_duplicate:
+            reason = "विगतको पुरानो भिडियो" if is_past else "लक्षित मितिको पुरानो ट्याग"
+            print(f"  -> {reason} भेटियो ({tag})। हटाउँदै: {tag} (ID: {rel_id})")
             del_url = f"https://api.github.com/repos/{repo}/releases/{rel_id}"
             del_req = urllib.request.Request(del_url, method="DELETE", headers={
                 "Authorization": f"Bearer {token}",
@@ -96,7 +106,8 @@ def main():
             except Exception:
                 pass
         else:
-            print(f"  -> लक्षित मितिकै भिडियो भएकाले सुरक्षित राखियो: {tag}")
+            status = "आजको भिडियो" if rel_date_nepal == today_nepal else ("भविष्यको भिडियो" if rel_date_nepal > today_nepal else "लक्षित भिडियो")
+            print(f"  -> {status} भएकाले सुरक्षित राखियो: {tag}")
 
 if __name__ == "__main__":
     main()

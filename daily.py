@@ -35,6 +35,10 @@ ap.add_argument("--crf", type=int, default=20, help="x264 भिडियो ग
 ap.add_argument("--probe", action="store_true", help="API/फाइलको कच्चा उत्तर देखाउँछ")
 ap.add_argument("--allow-stale", action="store_true", help="डाटा नभेटिए पुरानै टेम्प्लेट प्रयोग गर्ने")
 ap.add_argument("--free-api", action="store_true", help="निःशुल्क /api/ai/today endpoint प्रयोग गर्ने")
+ap.add_argument("--no-intro", action="store_true", help="इन्ट्रो स्क्रिन नराख्ने")
+ap.add_argument("--no-outro", action="store_true", help="आउट्रो लोगो स्क्रिन नराख्ने")
+ap.add_argument("--intro", action="store_true", help="इन्ट्रो स्क्रिन राख्ने")
+ap.add_argument("--outro", action="store_true", help="आउट्रो लोगो स्क्रिन राख्ने")
 
 a = ap.parse_args()
 
@@ -197,6 +201,14 @@ if a.test:
     cmd.append("--test")
 if a.only:
     cmd.extend(["--only"] + [str(x) for x in a.only])
+if a.no_intro:
+    cmd.append("--no-intro")
+if a.no_outro:
+    cmd.append("--no-outro")
+if a.intro:
+    cmd.append("--intro")
+if a.outro:
+    cmd.append("--outro")
 
 print("रेन्डर सुरु गर्दैछ:", " ".join(cmd))
 subprocess.run(cmd, check=True)

@@ -35,6 +35,10 @@ ap.add_argument("--fps", type=int, default=20, help="फ्रेम रेट (
 ap.add_argument("--out", default="videos", help="आउटपुट फोल्डर (default: videos)")
 ap.add_argument("--test", action="store_true", help="छिटो टेस्ट: मुख्य फ्रेमका फोटो मात्र")
 ap.add_argument("--crf", type=int, default=20, help="x264 भिडियो गुणस्तर (default: 20)")
+ap.add_argument("--no-intro", action="store_true", help="इन्ट्रो स्क्रिन नराख्ने")
+ap.add_argument("--no-outro", action="store_true", help="आउट्रो लोगो स्क्रिन नराख्ने")
+ap.add_argument("--intro", action="store_true", help="इन्ट्रो स्क्रिन राख्ने")
+ap.add_argument("--outro", action="store_true", help="आउट्रो स्क्रिन राख्ने")
 
 a = ap.parse_args()
 
@@ -67,9 +71,15 @@ with sync_playwright() as p:
     pg.set_content("<html></html>")
     pg.add_script_tag(content=js)
 
+    opts = {"subset": sub}
+    if a.no_intro: opts["intro"] = False
+    elif a.intro: opts["intro"] = True
+    if a.no_outro: opts["outro"] = False
+    elif a.outro: opts["outro"] = True
+
     res = pg.evaluate(
         "([c,a,o])=>{const r=RV.build(c,a,o);return {doc:RV.doc(r),T:r.T,ev:r.ev,sec:r.sections}}",
-        [content, assets, {"subset": sub}]
+        [content, assets, opts]
     )
 
     T = res["T"]
