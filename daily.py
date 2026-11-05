@@ -174,6 +174,17 @@ if a.dry:
     sys.exit(0)
 
 # ४. भिडियो रेन्डर आह्वान (render.py)
+out_dir = Path(a.out)
+if out_dir.exists() and not a.dry:
+    date_label = (f"{bs[0]}-{bs[1]:02d}-{bs[2]:02d}" if 'bs' in locals() and bs else ad_iso)
+    for old_vid in out_dir.glob("NepDate_Rashifal_*.mp4"):
+        if date_label not in old_vid.name:
+            print(f"पुरानो भिडियो हटाइयो: {old_vid.name}")
+            try:
+                old_vid.unlink()
+            except Exception:
+                pass
+
 cmd = [
     sys.executable,
     str(HERE / "render.py"),

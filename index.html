@@ -469,12 +469,12 @@ textarea {
         <div class="row" style="margin-top:12px">
           <div>
             <label>GitHub Repository (owner/repo)</label>
-            <input type="text" id="gh-repo" placeholder="e.g. khumnath/nepdate-rashifal-video">
+            <input type="text" id="gh-repo" value="8008698/rfkit">
           </div>
           <div>
             <label>GitHub Personal Access Token (PAT)</label>
-            <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
-            <span class="note" style="font-size:11px">टोकन केवल तपाईंको आफ्नै ब्राउजरमा (localStorage) मात्र सुरक्षित रहन्छ।</span>
+            <input type="password" id="gh-token" placeholder="यहाँ Access Token (PAT) राख्नुहोस्" autocomplete="off">
+            <span class="note" style="font-size:11px">टोकन कतै सेभ हुँदैन, नयाँ भिडियो बनाउन हरेक पटक यहाँ राख्नुहोस्।</span>
           </div>
         </div>
         <div class="row" style="margin-top:8px">
@@ -1502,19 +1502,17 @@ function applyNepdateData(data) {
 
 // GITHUB ACTIONS WORKFLOW DISPATCH
 async function triggerGitHub() {
-  const repo = $("gh-repo").value.trim();
+  const repo = $("gh-repo").value.trim() || "8008698/rfkit";
   const token = $("gh-token").value.trim();
   const workflow = $("gh-workflow").value.trim() || "daily.yml";
   const branch = $("gh-branch").value.trim() || "main";
   const dateVal = $("in-ad-date").value;
 
-  if (!repo || !token) {
-    alert("कृपया GitHub Repo (owner/repo) र Personal Access Token प्रविष्ट गर्नुहोस्!");
+  if (!token) {
+    alert("कृपया भिडियो बनाउन GitHub Personal Access Token प्रविष्ट गर्नुहोस्!");
+    $("gh-token").focus();
     return;
   }
-
-  localStorage.setItem("nepdate_gh_repo", repo);
-  localStorage.setItem("nepdate_gh_token", token);
 
   const statusBox = $("gh-status-box");
   const statusTxt = $("gh-status-text");
@@ -1699,8 +1697,8 @@ $("theme-btn").onclick = () => {
 
 // INITIAL LOAD
 $("in-ad-date").value = new Date().toISOString().split("T")[0];
-if (localStorage.getItem("nepdate_gh_repo")) $("gh-repo").value = localStorage.getItem("nepdate_gh_repo");
-if (localStorage.getItem("nepdate_gh_token")) $("gh-token").value = localStorage.getItem("nepdate_gh_token");
+$("gh-repo").value = "8008698/rfkit";
+$("gh-token").value = "";
 
 init();
 pingApiHealth();

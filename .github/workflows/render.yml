@@ -28,6 +28,11 @@ jobs:
           name: rashifal-video
           path: videos/*.mp4
           retention-days: 14
+      - name: Clean up old videos if date is not today Nepal date
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python cleanup_old_releases.py
       - name: Publish as release (phone-friendly download link)
         uses: softprops/action-gh-release@v2
         with:
