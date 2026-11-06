@@ -39,6 +39,9 @@ ap.add_argument("--no-intro", action="store_true", help="इन्ट्रो �
 ap.add_argument("--no-outro", action="store_true", help="आउट्रो लोगो स्क्रिन नराख्ने")
 ap.add_argument("--intro", action="store_true", help="इन्ट्रो स्क्रिन राख्ने")
 ap.add_argument("--outro", action="store_true", help="आउट्रो स्क्रिन राख्ने")
+ap.add_argument("--voice", action="store_true", help="XTTS-v2 मार्फत तपाईंकै आवाजमा भ्वाइसओभर जोड्ने")
+ap.add_argument("--voice-sample", default="assets/voice_sample.wav",
+                help="Voice reference WAV (default: assets/voice_sample.wav)")
 
 a = ap.parse_args()
 
@@ -144,6 +147,61 @@ with sync_playwright() as p:
 
         print("सङ्गीत अडियो तयार गर्दै...")
         audio.write(str(wav), T, ev, 7)
+
+        # ── Voice Cloning (--voice flag भए) ──────────────────────────────
+        if getattr(a, "voice", False):
+            voice_sample = HERE / getattr(a, "voice_sample", "assets/voice_sample.wav")
+            if not voice_sample.exists():
+                print(f"⚠️  Voice sample भेटिएन ({voice_sample}), संगीत मात्र राखिनेछ।", flush=True)
+            else:
+                print("🎙️  Voice TTS चलाउँदै (XTTS-v2)...", flush=True)
+                voice_full = out / "_voice_full.wav"
+                try:
+                    subprocess.run([
+                        sys.executable, str(HERE / "voice_tts.py"),
+                        str(content_path),
+                        "--out", str(out),
+                        "--voice", str(voice_sample),
+                    ], check=True)
+
+                    # सबै voice WAV concat गर्ने → voice_full.wav
+                    voice_parts = sorted(out.glob("_voice_*.wav"))
+                    if voice_parts:
+                        list_file = out / "_voice_list.txt"
+                        list_file.write_text(
+                            "\n".join(f"file '{p.name}'" for p in voice_parts),
+                            encoding="utf-8"
+                        )
+                        subprocess.run([
+                            "ffmpeg", "-y", "-loglevel", "error",
+                            "-f", "concat", "-safe", "0",
+                            "-i", str(list_file),
+                            "-ar", "44100", "-ac", "1",
+                            str(voice_full)
+                        ], check=True)
+
+                        # Voice (100%) + Music (18%) मिक्स
+                        mixed_wav = out / "_mixed_audio.wav"
+                        subprocess.run([
+                            "ffmpeg", "-y", "-loglevel", "error",
+                            "-i", str(voice_full),
+                            "-i", str(wav),
+                            "-filter_complex",
+                            "[1:a]volume=0.18[bg];[0:a][bg]amix=inputs=2:duration=longest:dropout_transition=2[out]",
+                            "-map", "[out]",
+                            "-ar", "44100",
+                            str(mixed_wav)
+                        ], check=True)
+                        wav = mixed_wav   # मिक्स गरेको अडियो प्रयोग गर्ने
+
+                        # सफाइ
+                        for p in voice_parts:
+                            p.unlink(missing_ok=True)
+                        list_file.unlink(missing_ok=True)
+                        voice_full.unlink(missing_ok=True)
+                        print("✅  Voice + Music मिक्स सम्पन्न!", flush=True)
+                except Exception as e:
+                    print(f"⚠️  Voice TTS त्रुटि ({e}), संगीत मात्र राखिनेछ।", flush=True)
 
         print("भिडियो र अडियो जोड्दै (AAC)...")
         subprocess.run(

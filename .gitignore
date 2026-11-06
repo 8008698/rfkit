@@ -11,6 +11,7 @@ videos/
 _fr/
 _tmp.html
 *.wav
+!assets/*.wav
 content.today.json
 
 # Node / Playwright

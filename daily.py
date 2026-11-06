@@ -39,6 +39,9 @@ ap.add_argument("--no-intro", action="store_true", help="इन्ट्रो �
 ap.add_argument("--no-outro", action="store_true", help="आउट्रो लोगो स्क्रिन नराख्ने")
 ap.add_argument("--intro", action="store_true", help="इन्ट्रो स्क्रिन राख्ने")
 ap.add_argument("--outro", action="store_true", help="आउट्रो लोगो स्क्रिन राख्ने")
+ap.add_argument("--voice", action="store_true", help="तपाईंकै आवाजमा भ्वाइसओभर जोड्ने (XTTS-v2)")
+ap.add_argument("--voice-sample", default="assets/voice_sample.wav",
+                help="Voice reference WAV (default: assets/voice_sample.wav)")
 
 a = ap.parse_args()
 
@@ -209,6 +212,10 @@ if a.intro:
     cmd.append("--intro")
 if a.outro:
     cmd.append("--outro")
+if a.voice:
+    cmd.append("--voice")
+if a.voice_sample:
+    cmd.extend(["--voice-sample", a.voice_sample])
 
 print("रेन्डर सुरु गर्दैछ:", " ".join(cmd))
 subprocess.run(cmd, check=True)

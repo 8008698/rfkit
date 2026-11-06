@@ -29,12 +29,15 @@ jobs:
         run: |
           pip install playwright numpy scipy nepali-datetime
           python -m playwright install --with-deps chromium
+      - name: Install TTS (voice cloning)
+        run: |
+          pip install TTS torch --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Fetch today's rashifal and render full 12 rashi video
         env:
           NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
           NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
         run: |
-          ARGS=""
+          ARGS="--voice"
           if [ -n "${{ github.event.inputs.date }}" ]; then
             ARGS="$ARGS --date ${{ github.event.inputs.date }}"
           fi
