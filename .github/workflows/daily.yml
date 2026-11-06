@@ -27,15 +27,18 @@ jobs:
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-cjk
       - name: Install Python dependencies
         run: |
-          pip install playwright numpy scipy nepali-datetime
+          pip install "numpy<2" "scipy<1.14" playwright nepali-datetime
           python -m playwright install --with-deps chromium
       - name: Install TTS (voice cloning)
+        env:
+          COQUI_TOS_AGREED: "1"
         run: |
-          pip install TTS torch --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install TTS torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Fetch today's rashifal and render full 12 rashi video
         env:
           NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
           NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
+          COQUI_TOS_AGREED: "1"
         run: |
           ARGS="--voice"
           if [ -n "${{ github.event.inputs.date }}" ]; then
