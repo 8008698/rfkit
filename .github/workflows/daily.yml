@@ -16,35 +16,64 @@ jobs:
   daily:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      COQUI_TOS_AGREED: "1"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install system dependencies & Devanagari fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-cjk
+
       - name: Install Python dependencies
         run: |
           pip install "numpy<2" "scipy<1.14" playwright nepali-datetime
           python -m playwright install --with-deps chromium
-      - name: Install TTS (voice cloning)
-        env:
-          COQUI_TOS_AGREED: "1"
+
+      - name: Install TTS + PyTorch (CPU)
         run: |
           pip install TTS torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
-      - name: Fetch today's rashifal and render full 12 rashi video
+
+      # ── 1. API बाट आजको राशिफल content.today.json मा बनाउने ──
+      - name: Fetch today's rashifal content
         env:
           NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
           NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
-          COQUI_TOS_AGREED: "1"
         run: |
-          ARGS="--voice"
+          DATE_ARG=""
           if [ -n "${{ github.event.inputs.date }}" ]; then
-            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
           fi
-          python daily.py --out videos $ARGS
+          python daily.py --dry --out videos $DATE_ARG
+
+      # ── 2. Voice TTS — तपाईंकै आवाजमा १२ राशिको अडियो बनाउने ──
+      - name: Generate voiceover (XTTS-v2 voice clone)
+        run: |
+          python voice_tts.py content.today.json \
+            --out videos \
+            --voice assets/voice_sample.wav \
+            --lang hi \
+            --speed 0.92
+          echo "✅ Voice WAV files generated:"
+          ls -lh videos/_voice_*.wav 2>/dev/null || echo "⚠️  No voice WAV files found!"
+
+      # ── 3. भिडियो रेन्डर (voice_tts ले बनाएको WAV लाई render.py ले उठाउँछ) ──
+      - name: Render video with voiceover
+        env:
+          NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
+          NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          fi
+          python daily.py --out videos --no-fetch $DATE_ARG
+
       - id: stamp
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
@@ -55,17 +84,20 @@ jobs:
           STAMP=$(TZ="Asia/Kathmandu" date +%Y%m%d-%H%M)
           echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
           echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
+
       - name: Clean up old videos if date is not today Nepal date
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_DATE: ${{ steps.stamp.outputs.target_date }}
         run: |
           python cleanup_old_releases.py
+
       - uses: actions/upload-artifact@v4
         with:
           name: rashifal-video
           path: videos/*.mp4
           retention-days: 14
+
       - uses: softprops/action-gh-release@v2
         if: success()
         with:

@@ -42,6 +42,8 @@ ap.add_argument("--outro", action="store_true", help="आउट्रो स्�
 ap.add_argument("--voice", action="store_true", help="XTTS-v2 मार्फत तपाईंकै आवाजमा भ्वाइसओभर जोड्ने")
 ap.add_argument("--voice-sample", default="assets/voice_sample.wav",
                 help="Voice reference WAV (default: assets/voice_sample.wav)")
+ap.add_argument("--voice-prebuilt", action="store_true",
+                help="voice_tts.py ले --out फोल्डरमा पहिले नै बनाइसकेका _voice_NN.wav files उठाउने")
 
 a = ap.parse_args()
 
@@ -148,117 +150,136 @@ with sync_playwright() as p:
         print("सङ्गीत अडियो तयार गर्दै...")
         audio.write(str(wav), T, ev, 7)
 
-        # ── Voice Cloning (--voice flag भए) ──────────────────────────────
-        if getattr(a, "voice", False):
-            voice_sample = HERE / getattr(a, "voice_sample", "assets/voice_sample.wav")
-            if not voice_sample.exists():
-                print(f"⚠️  Voice sample भेटिएन ({voice_sample}), संगीत मात्र राखिनेछ।", flush=True)
-            else:
-                print("🎙️  Voice TTS सुरु गर्दै (XTTS-v2)...", flush=True)
-                voice_full = out / "_voice_full.wav"
-                try:
+        # ── Voice Mixing ─────────────────────────────────────────────────
+        # --voice-prebuilt: voice_tts.py ले पहिले नै बनाइसकेको WAV उठाउने
+        # --voice:          यहीँ voice_tts.py चलाएर WAV बनाउने
+        use_voice = getattr(a, "voice_prebuilt", False) or getattr(a, "voice", False)
+        if use_voice:
+            voice_full = out / "_voice_full.wav"
+
+            # pre-built WAV files छैनन् भने voice_tts.py चलाउने
+            prebuilt_parts = sorted(out.glob("_voice_*.wav"))
+            if not prebuilt_parts and getattr(a, "voice", False):
+                voice_sample = HERE / getattr(a, "voice_sample", "assets/voice_sample.wav")
+                if not voice_sample.exists():
+                    print(f"⚠️  Voice sample भेटिएन ({voice_sample}) — म्युजिक मात्र राखिनेछ।", flush=True)
+                    use_voice = False
+                else:
+                    print("🎙️  Voice TTS सुरु गर्दै (XTTS-v2)...", flush=True)
                     tts_cmd = [
                         sys.executable, str(HERE / "voice_tts.py"),
-                        str(content_path),
-                        "--out", str(out),
+                        str(content_path), "--out", str(out),
                         "--voice", str(voice_sample),
                     ]
                     if a.only:
                         tts_cmd.extend(["--only"] + [str(x) for x in a.only])
-
                     env = dict(os.environ, COQUI_TOS_AGREED="1")
-                    subprocess.run(tts_cmd, check=True, env=env)
+                    result = subprocess.run(tts_cmd, env=env)
+                    if result.returncode != 0:
+                        print(f"⚠️  Voice TTS फेल (exit {result.returncode}) — म्युजिक मात्र राखिनेछ।", flush=True)
+                        use_voice = False
+                    else:
+                        prebuilt_parts = sorted(out.glob("_voice_*.wav"))
 
-                    # भ्वाइसलाई राशिअनुसारको समयमा मिलाउने (Timeline Synchronization)
-                    voice_parts = sorted(out.glob("_voice_*.wav"))
-                    if voice_parts:
-                        print("⏱️  भिडियो स्लाइडहरूसँग भ्वाइस सिंक गर्दै...", flush=True)
-                        synced = False
-                        try:
-                            import numpy as np
-                            from scipy.io import wavfile
-                            from scipy.signal import resample
+            if use_voice:
+                voice_parts = prebuilt_parts if prebuilt_parts else sorted(out.glob("_voice_*.wav"))
+                if not voice_parts:
+                    print("⚠️  _voice_*.wav फाइलहरू भेटिएनन् — म्युजिक मात्र राखिनेछ।", flush=True)
+                    use_voice = False
+                else:
+                    print(f"⏱️  {len(voice_parts)} वटा voice WAV भेटिए — timeline sync सुरु...", flush=True)
 
-                            sr_target = 44100
-                            total_samples = int(T * sr_target)
-                            timeline = np.zeros(total_samples, dtype=np.float32)
+                    # Timeline sync: प्रत्येक राशिको voice लाई सही समयमा राख्ने
+                    synced = False
+                    try:
+                        import numpy as np
+                        from scipy.io import wavfile
+                        from scipy.signal import resample as sig_resample
 
-                            for s_info in sec.get("signs", []):
-                                si = s_info.get("si", 0)
-                                p = out / f"_voice_{si+1:02d}.wav"
-                                if not p.exists():
-                                    continue
-                                sr, data = wavfile.read(str(p))
-                                if data.dtype == np.int16:
-                                    data = data.astype(np.float32) / 32768.0
-                                elif data.dtype == np.int32:
-                                    data = data.astype(np.float32) / 2147483648.0
-                                elif data.dtype == np.uint8:
-                                    data = (data.astype(np.float32) - 128.0) / 128.0
+                        SR = 44100
+                        total_s = int(T * SR)
+                        timeline = np.zeros(total_s, dtype=np.float32)
 
-                                if len(data.shape) > 1:
-                                    data = data.mean(axis=1)
+                        for s_info in sec.get("signs", []):
+                            si = s_info.get("si", 0)
+                            p = out / f"_voice_{si+1:02d}.wav"
+                            if not p.exists():
+                                print(f"  ⚠️  {p.name} भेटिएन, skip.", flush=True)
+                                continue
+                            sr, data = wavfile.read(str(p))
+                            if data.dtype == np.int16:
+                                data = data.astype(np.float32) / 32768.0
+                            elif data.dtype == np.int32:
+                                data = data.astype(np.float32) / 2147483648.0
+                            elif data.dtype == np.uint8:
+                                data = (data.astype(np.float32) - 128.0) / 128.0
+                            if data.ndim > 1:
+                                data = data.mean(axis=1)
+                            if sr != SR:
+                                data = sig_resample(data, int(len(data) * SR / sr))
 
-                                if sr != sr_target:
-                                    num_s = int(len(data) * sr_target / sr)
-                                    data = resample(data, num_s)
+                            # राशि slide सुरु भएको 2 sec पछि बोल्ने
+                            start_idx = int((s_info.get("S", 0.0) + 2.0) * SR)
+                            end_idx = min(total_s, start_idx + len(data))
+                            if 0 <= start_idx < total_s:
+                                chunk = data[:end_idx - start_idx]
+                                timeline[start_idx:end_idx] += chunk
+                                synced = True
+                                print(f"  ✓ राशि {si+1:02d}: t={s_info.get('S',0):.1f}s + 2.0s = start {start_idx/SR:.1f}s, dur={len(chunk)/SR:.1f}s", flush=True)
 
-                                # स्लाइड सुरु भएको १.८ सेकेन्डपछि बोल्ने
-                                start_t = s_info.get("S", 0.0) + 1.8
-                                start_idx = int(start_t * sr_target)
-                                end_idx = min(total_samples, start_idx + len(data))
-                                if start_idx < total_samples and end_idx > start_idx:
-                                    timeline[start_idx:end_idx] = data[:end_idx - start_idx]
-                                    synced = True
+                        if synced:
+                            peak = np.max(np.abs(timeline))
+                            if peak > 0.0:
+                                timeline = timeline * (0.92 / peak)
+                            wavfile.write(str(voice_full), SR, (timeline * 32767).astype(np.int16))
+                            print(f"✅  Timeline sync सम्पन्न → {voice_full.name}", flush=True)
+                        else:
+                            print("⚠️  कुनै पनि voice WAV timeline मा राख्न सकिएन।", flush=True)
 
-                            if synced:
-                                max_v = np.max(np.abs(timeline))
-                                if max_v > 0.95:
-                                    timeline = timeline * (0.95 / max_v)
-                                timeline_i16 = (timeline * 32767.0).astype(np.int16)
-                                wavfile.write(str(voice_full), sr_target, timeline_i16)
-                        except Exception as sync_err:
-                            print(f"  (Timeline sync fallback to concat: {sync_err})", flush=True)
+                    except Exception as sync_err:
+                        import traceback
+                        print(f"⚠️  Timeline sync error: {sync_err}", flush=True)
+                        traceback.print_exc()
 
-                        # यदि timeline sync भएन भने साधारण concat प्रयोग गर्ने
-                        if not voice_full.exists():
-                            list_file = out / "_voice_list.txt"
-                            list_file.write_text(
-                                "\n".join(f"file '{p.name}'" for p in voice_parts),
-                                encoding="utf-8"
-                            )
-                            subprocess.run([
-                                "ffmpeg", "-y", "-loglevel", "error",
-                                "-f", "concat", "-safe", "0",
-                                "-i", str(list_file),
-                                "-ar", "44100", "-ac", "1",
-                                str(voice_full)
-                            ], check=True)
-                            list_file.unlink(missing_ok=True)
+                    # Fallback: sync fail भए concat गर्ने
+                    if not voice_full.exists():
+                        print("🔄  Fallback: voice WAV files concat गर्दै...", flush=True)
+                        list_file = out / "_voice_list.txt"
+                        list_file.write_text(
+                            "\n".join(f"file '{p.name}'" for p in voice_parts),
+                            encoding="utf-8"
+                        )
+                        subprocess.run([
+                            "ffmpeg", "-y", "-loglevel", "error",
+                            "-f", "concat", "-safe", "0",
+                            "-i", str(list_file),
+                            "-ar", "44100", "-ac", "1",
+                            str(voice_full)
+                        ], check=True)
+                        list_file.unlink(missing_ok=True)
 
-                        # Voice (100%) + Music (16%) मिक्स
+                    if voice_full.exists():
+                        # Voice (100%) + Background music (15%) mix
                         mixed_wav = out / "_mixed_audio.wav"
                         subprocess.run([
                             "ffmpeg", "-y", "-loglevel", "error",
                             "-i", str(voice_full),
                             "-i", str(wav),
                             "-filter_complex",
-                            "[1:a]volume=0.16[bg];[0:a][bg]amix=inputs=2:duration=longest:dropout_transition=2[out]",
+                            "[0:a]volume=1.0[v];[1:a]volume=0.15[bg];[v][bg]amix=inputs=2:duration=longest:dropout_transition=3[out]",
                             "-map", "[out]",
                             "-ar", "44100",
                             str(mixed_wav)
                         ], check=True)
-                        wav = mixed_wav   # मिक्स गरिएको अडियो प्रयोग गर्ने
-
-                        # अस्थायी भ्वाइस फाइलहरू सफा गर्ने
-                        for p in voice_parts:
-                            p.unlink(missing_ok=True)
+                        wav = mixed_wav
                         voice_full.unlink(missing_ok=True)
-                        print("✅  तपाईंकै आवाज + ब्याकग्राउन्ड म्युजिक मिक्स सम्पन्न!", flush=True)
-                except Exception as e:
-                    import traceback
-                    print(f"⚠️  Voice TTS त्रुटि: {e}", flush=True)
-                    traceback.print_exc()
+                        print("✅  तपाईंकै आवाज + ब्याकग्राउन्ड म्युजिक — मिक्स सम्पन्न!", flush=True)
+                    else:
+                        print("⚠️  voice_full.wav बनेन — म्युजिक मात्र राखिनेछ।", flush=True)
+
+                    # अस्थायी voice part files सफा गर्ने
+                    for p in voice_parts:
+                        p.unlink(missing_ok=True)
 
         print("भिडियो र अडियो जोड्दै (AAC)...")
         subprocess.run(

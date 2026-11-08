@@ -28,6 +28,7 @@ ap.add_argument("--local-dir", default="../data/nepdate", help="स्थान�
 ap.add_argument("--date", help="AD मिति YYYY-MM-DD (खाली भए आजको मिति, नेपाल समय)")
 ap.add_argument("--out", default="videos", help="भिडियो आउटपुट फोल्डर (default: videos)")
 ap.add_argument("--dry", action="store_true", help="सामग्री मात्र content.today.json मा तयार गर्ने (रेन्डर नगर्ने)")
+ap.add_argument("--no-fetch", action="store_true", help="API fetch नगर्ने — content.today.json पहिले नै छ भने सिधै रेन्डर गर्ने")
 ap.add_argument("--test", action="store_true", help="रेन्डर टेस्ट: मुख्य क्षणका फोटो मात्र खिच्ने")
 ap.add_argument("--only", nargs="*", type=int, help="छानिएका राशि नम्बरहरू (१=मेष … १२=मीन)")
 ap.add_argument("--fps", type=int, default=20, help="भिडियो फ्रेम रेट (default: 20)")
@@ -61,6 +62,32 @@ if a.date:
     ad = dt.date.fromisoformat(a.date)
 
 ad_iso = ad.isoformat()
+
+# --no-fetch: API fetch नगरी content.today.json बाटै सिधै render गर्ने
+if a.no_fetch:
+    today_json_path = HERE / "content.today.json"
+    if not today_json_path.exists():
+        sys.exit("त्रुटि: --no-fetch दिइयो तर content.today.json भेटिएन। पहिले --dry चलाउनुहोस्।")
+    print(f"--no-fetch: content.today.json बाटै render सुरु गर्दैछ।", flush=True)
+    # render.py लाई voice WAV files पहिले नै छन् भन्ने थाहा दिन --voice-prebuilt flag पठाइन्छ
+    cmd = [
+        sys.executable,
+        str(HERE / "render.py"),
+        str(today_json_path),
+        "--out", a.out,
+        "--fps", str(a.fps),
+        "--crf", str(a.crf),
+        "--voice-prebuilt",   # voice_tts.py ले पहिले नै बनाइसकेको WAV files उठाउने
+    ]
+    if a.test: cmd.append("--test")
+    if a.only: cmd.extend(["--only"] + [str(x) for x in a.only])
+    if a.no_intro: cmd.append("--no-intro")
+    if a.no_outro: cmd.append("--no-outro")
+    if a.intro: cmd.append("--intro")
+    if a.outro: cmd.append("--outro")
+    print("रेन्डर सुरु गर्दैछ:", " ".join(cmd))
+    subprocess.run(cmd, check=True)
+    sys.exit(0)
 
 # २. स्रोत निर्धारण: स्थानीय फाइल पहिलो प्राथमिकता (LOCAL FIRST)
 api_cfg = cfg.get("api", {})
