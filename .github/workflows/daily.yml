@@ -37,7 +37,7 @@ jobs:
 
       - name: Install TTS + PyTorch (CPU)
         run: |
-          pip install TTS torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers<4.46" TTS torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
 
       # ── 1. API बाट आजको राशिफल content.today.json मा बनाउने ──
       - name: Fetch today's rashifal content
