@@ -101,7 +101,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: voice-shard-${{ matrix.shard }}
-          path: videos/_voice_*.wav
+          path: |
+            videos/_voice_*.wav
+            videos/_timing_sign_*.json
           retention-days: 1
 
   # ── ३. भिडियो रेन्डर र रिलिज (Video + Synced Voiceover) ──

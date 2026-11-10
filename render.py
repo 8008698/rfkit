@@ -82,6 +82,22 @@ with sync_playwright() as p:
     if a.no_outro: opts["outro"] = False
     elif a.outro: opts["outro"] = True
 
+    # पाठ र आवाज अनुसार कार्डको समय सिङ्क गर्न _timing_sign_*.json बाट अवधिहरू लोड गर्ने
+    timing_files = sorted(out.glob("_timing_sign_*.json"))
+    if timing_files:
+        for tf in timing_files:
+            try:
+                tdata = json.load(open(tf, encoding="utf-8"))
+                si = tdata.get("si")
+                durs = tdata.get("durations", [])
+                if si is not None and si < len(content.get("signs", [])):
+                    for c_i, d in enumerate(durs):
+                        if c_i < len(content["signs"][si].get("sentences", [])):
+                            content["signs"][si]["sentences"][c_i]["dur"] = d
+            except Exception:
+                pass
+        print(f"⏱️  {len(timing_files)} राशिको भ्वाइस टाइमङ लोड भयो — भिडियो कार्डहरू अडियोको लम्बाइ अनुसार सिङ्क भए।", flush=True)
+
     res = pg.evaluate(
         "([c,a,o])=>{const r=RV.build(c,a,o);return {doc:RV.doc(r),T:r.T,ev:r.ev,sec:r.sections}}",
         [content, assets, opts]
@@ -314,9 +330,11 @@ with sync_playwright() as p:
                     else:
                         print("⚠️  voice_full.wav बनेन — म्युजिक मात्र राखिनेछ।", flush=True)
 
-                    # अस्थायी voice part files सफा गर्ने
+                    # अस्थायी voice part files र टाइमङ फाइलहरू सफा गर्ने
                     for p in voice_parts:
                         p.unlink(missing_ok=True)
+                    for tf in out.glob("_timing_sign_*.json"):
+                        tf.unlink(missing_ok=True)
 
         print("भिडियो र अडियो जोड्दै (AAC)...")
         subprocess.run(

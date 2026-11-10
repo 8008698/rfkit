@@ -30,14 +30,26 @@ const FONTS="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;7
 
 const SECT=["#7C3AED","#8B2FE0","#9A2BD0","#A426B8","#C41F8A","#E23A5B","#F4622A","#F97316","#F0562F","#E03A5C","#C22A94","#9333EA"];
 const DN="०१२३४५६७८९";const dev=n=>String(n).split("").map(c=>DN[+c]).join("");
+function calcCardDur(s){
+  if(s&&typeof s.dur==="number"&&s.dur>0)return s.dur;
+  const t=typeof s==="string"?s:(s&&s.text?s.text:"");
+  const len=t.trim().length;
+  // Dynamic card duration based on text length:
+  // Speech onset ~0.3s + len / 12.5s speech + 1.2s viewing pause (minimum 4.4s)
+  const estSpeech=0.3+(len/12.5);
+  return Math.max(4.4,Math.round((estSpeech+1.2)*10)/10);
+}
 function buildFull(content,assets,opts){
   opts=opts||{};const all=content.signs;const d=content.date;const IN=content.intro||{};
   const sub=opts.subset&&opts.subset.length?opts.subset.slice():[...Array(12).keys()];
   const intro=opts.intro!==undefined?opts.intro:sub[0]===0;
   const outro=opts.outro!==undefined?opts.outro:sub[sub.length-1]===11;
-  const SL=4.4;const sch=[];let cur=intro?14.0:0.8;
+  const sch=[];let cur=intro?14.0:0.8;
   sub.forEach(si=>{const sg=all[si];let sents=(sg.sentences||[]).map(x=>typeof x==="string"?{text:x}:x).filter(x=>x&&x.text&&x.text.trim());if(!sents.length)sents=[{text:"आजको राशिफल उपलब्ध छैन।"}];
-    const k=sents.length,c0=cur+6.6,E=c0+k*SL;sch.push({si,sg,S:cur,c0,E,sents,k,st:Math.max(0,Math.min(5,+sg.stars||0))});cur=E+0.8;});
+    const k=sents.length;const c0=cur+6.6;let card_cur=c0;const cardTimes=[];
+    sents.forEach(s=>{const dur=calcCardDur(s);cardTimes.push({c0:card_cur,dur:dur});card_cur+=dur;});
+    const E=card_cur;
+    sch.push({si,sg,S:cur,c0,E,sents,k,cardTimes,st:Math.max(0,Math.min(5,+sg.stars||0))});cur=E+0.8;});
   const last=sch[sch.length-1];const O=last.E+0.2;const T=Math.round((outro?O+4.8:last.E+1.0)*10)/10;
   const p=s=>(Math.max(0,Math.min(T,s))/T*100).toFixed(3)+"%";
   const kfs=[];
@@ -133,11 +145,19 @@ ${sctr}</div>
     const stT=[...Array(st)].map((_,i)=>S+5.2+.45*i);stT.forEach((t0,i)=>{K(`st${n}_${i}`,[[t0,"opacity:0;transform:scale(.3)"],[t0+.25,"opacity:1;transform:scale(1.45)"],[t0+.55,"opacity:1;transform:scale(1)"]]);ev.stars.push(t0);});
     const starsB=[0,1,2,3,4].map(i=>`<div style="position:relative;width:48px;height:42px"><svg width="42" height="42" viewBox="0 0 24 24" style="position:absolute;left:0;top:0"><path d="${P}" fill="#D1D5DB"/></svg>`+(i<st?`<svg width="42" height="42" viewBox="0 0 24 24" style="position:absolute;left:0;top:0;filter:drop-shadow(0 0 8px rgba(211,47,47,.7));${A(`st${n}_${i}`)}"><path d="${P}" fill="#D32F2F"/></svg>`:"")+`</div>`).join("");
     let cardsH="";
-    o.sents.forEach((s,i)=>{const c0=o.c0+i*SL;ev.cards.push(c0);
-      const pts=[[c0,"opacity:0;transform:translateY(34px) scale(.96)"],[c0+.45,"opacity:1;transform:none"]];if(i<o.k-1)pts.push([c0+SL-.5,"opacity:1;transform:none"],[c0+SL-.05,"opacity:0;transform:translateY(-26px) scale(.98)"]);else pts.push([o.E+0.3,"opacity:1;transform:none"],[o.E+0.7,"opacity:0;transform:none"]);K(`cd${n}_${i}`,pts);
+    o.sents.forEach((s,i)=>{
+      const ct=o.cardTimes[i];const c0=ct.c0;const cDur=ct.dur;const cEnd=c0+cDur;ev.cards.push(c0);
+      const pts=[[c0,"opacity:0;transform:translateY(34px) scale(.96)"],[c0+.45,"opacity:1;transform:none"]];
+      if(i<o.k-1)pts.push([cEnd-.5,"opacity:1;transform:none"],[cEnd-.05,"opacity:0;transform:translateY(-26px) scale(.98)"]);
+      else pts.push([o.E+0.3,"opacity:1;transform:none"],[o.E+0.7,"opacity:0;transform:none"]);
+      K(`cd${n}_${i}`,pts);
       const ck=(s.cat&&CATS[s.cat])?s.cat:autoCat(s.text);const [lab,cc,ic]=CATS[ck];
       const dots=[...Array(o.k)].map((_,q)=>`<div style="width:${q===i?34:10}px;height:10px;border-radius:5px;background:${q===i?cc:"#D1D5DB"}"></div>`).join("");
-      cardsH+=`<div style="position:absolute;left:80px;top:652px;width:920px;height:276px;box-sizing:border-box;padding:24px 36px;border-radius:30px;background:linear-gradient(180deg,#fff,#F5F8FF);border:2px solid ${cc}55;box-shadow:0 18px 40px rgba(31,58,125,.14);opacity:0;${A(`cd${n}_${i}`)}"><div style="position:absolute;left:0;top:30px;width:8px;height:70px;border-radius:0 6px 6px 0;background:${cc}"></div><div style="display:inline-flex;align-items:center;gap:10px;padding:8px 20px 8px 14px;border-radius:30px;background:${cc};color:#fff;font-size:24px;font-weight:600"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg>${lab}</div><div style="margin-top:14px;font-size:38px;line-height:1.42;font-weight:500;color:#1F2937">${typed(s.text,c0+.5,.032)}</div><div style="position:absolute;right:30px;bottom:22px;display:flex;gap:6px">${dots}</div></div>`;});
+      const tLen=(s.text||"").length;
+      const fSize=tLen>90?28:(tLen>65?33:38);
+      const lHeight=tLen>90?1.35:(tLen>65?1.38:1.42);
+      cardsH+=`<div style="position:absolute;left:80px;top:652px;width:920px;height:276px;box-sizing:border-box;padding:24px 36px;border-radius:30px;background:linear-gradient(180deg,#fff,#F5F8FF);border:2px solid ${cc}55;box-shadow:0 18px 40px rgba(31,58,125,.14);opacity:0;${A(`cd${n}_${i}`)}"><div style="position:absolute;left:0;top:30px;width:8px;height:70px;border-radius:0 6px 6px 0;background:${cc}"></div><div style="display:inline-flex;align-items:center;gap:10px;padding:8px 20px 8px 14px;border-radius:30px;background:${cc};color:#fff;font-size:24px;font-weight:600"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg>${lab}</div><div style="margin-top:14px;font-size:${fSize}px;line-height:${lHeight};font-weight:500;color:#1F2937">${typed(s.text,c0+.5,.032)}</div><div style="position:absolute;right:30px;bottom:22px;display:flex;gap:6px">${dots}</div></div>`;
+    });
     return `<div style="position:absolute;inset:0;visibility:hidden;${A('sg'+n)}">
 <div style="position:absolute;left:360px;top:190px;width:360px;height:260px;opacity:0;${A('em'+n)}">
 <div style="position:absolute;left:20px;top:10px;width:320px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(245,196,81,.85) 0%,rgba(245,196,81,0) 70%);animation:aura 4s ease-in-out infinite"></div>${orb}${parts("#E8B93C",n+3)}

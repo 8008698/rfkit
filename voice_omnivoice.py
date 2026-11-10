@@ -47,10 +47,19 @@ LOCAL_CANDIDATES = [
 ]
 
 # Timeline Constants from rashifal_video.js
-SL_SECONDS = 4.4    # प्रत्येक कार्ड स्क्रिनमा रहने समय
+SL_SECONDS = 4.4    # न्यूनतम कार्ड समय (Base duration)
 C0_REL = 6.6        # राशि सुरु भएको कति सेकेन्डपछि कार्ड ० देखा पर्ने
 INTRO_DURATION = 14.0 # इन्ट्रोको कुल लम्बाइ
 OUTRO_DURATION = 4.8  # आउट्रोको कुल लम्बाइ
+
+
+def calc_card_duration(text: str) -> float:
+    """अक्षर संख्याको आधारमा कार्ड स्क्रिनमा रहने समय (सेकेन्ड) गणना गर्छ।"""
+    length = len(text.strip())
+    # 0.95x बोलीको गतिमा ~12.5 अक्षर प्रति सेकेन्ड + 0.3s सुरुआत
+    est_speech = 0.3 + (length / 12.5)
+    # वाचनपछि 1.2 सेकेन्ड शान्त विराम (न्यूनतम 4.4 सेकेन्ड)
+    return max(4.4, round(est_speech + 1.2, 1))
 
 
 def resolve_model_path(user_model_arg: Optional[str] = None) -> str:
@@ -197,36 +206,23 @@ def generate_sign_audio(
     speed: float,
     guidance: float,
     sr: int = 24000
-) -> Tuple[np.ndarray, float]:
+) -> Tuple[np.ndarray, float, List[float]]:
     """
-    एक राशिको प्रत्येक वाक्य स्क्रिनमा कार्ड आउने बित्तिकै बोल्ने गरी बनाउँछ।
-    - 1.0s: "{name} राशि।" (व्हिलमा नाम आउँदा)
-    - 6.8s: कार्ड ० (पहिलो वाक्य)
-    - 11.2s: कार्ड १ (दोस्रो वाक्य)
-    - 15.6s: कार्ड २ (तेस्रो वाक्य)
-    - 20.0s: कार्ड ३ (चौथो वाक्य)
+    एक राशिको प्रत्येक वाक्यको लम्बाइ अनुसार कार्डको समय बढाएर बिना कुनै कट-अफ
+    स्पष्ट र प्राकृतिक रूपमा भ्वाइसओभर तयार गर्छ।
     """
     name = sign.get("name", "").strip()
     sents = [s["text"].strip() for s in sign.get("sentences", []) if s.get("text")]
     if not sents:
         sents = ["आजको राशिफल उपलब्ध छैन।"]
 
-    k = len(sents)
-    total_dur = C0_REL + k * SL_SECONDS + 0.8
-    total_samples = int(total_dur * sr)
-    timeline = np.zeros(total_samples, dtype=np.float32)
-
     # १. राशि नाम (t = 1.0s)
     a_name = synthesize_text(model, f"{name} राशि।", instruct, seed + idx * 20, speed, guidance)
-    i_name = int(1.0 * sr)
-    timeline[i_name : i_name + len(a_name)] = a_name[: total_samples - i_name]
 
-    # २. प्रत्येक वाक्य कार्ड देखा पर्दा
-    max_chunk_samples = int((SL_SECONDS - 0.2) * sr)
+    # २. प्रत्येक वाक्य सिन्थेसाइज गर्ने (NO CUTOFF! वास्तविक अडियो अनुसार समय निर्धारण)
+    chunks_audio = []
+    card_durations = []
     for c_i, sent in enumerate(sents):
-        t_card = C0_REL + c_i * SL_SECONDS + 0.2
-        i_card = int(t_card * sr)
-
         chunk_audio = synthesize_text(
             model,
             sent,
@@ -235,13 +231,30 @@ def generate_sign_audio(
             speed,
             guidance
         )
-        if len(chunk_audio) > max_chunk_samples:
-            chunk_audio = chunk_audio[:max_chunk_samples]
+        audio_dur = len(chunk_audio) / float(sr)
+        # Dynamic card duration: text length estimate vs actual audio duration + 1.2s pause
+        c_dur = max(calc_card_duration(sent), round(audio_dur + 1.2, 1))
+        chunks_audio.append(chunk_audio)
+        card_durations.append(c_dur)
 
+    total_dur = C0_REL + sum(card_durations) + 0.8
+    total_samples = int(total_dur * sr)
+    timeline = np.zeros(total_samples, dtype=np.float32)
+
+    # राशि नाम राख्ने (t = 1.0s)
+    i_name = int(1.0 * sr)
+    timeline[i_name : i_name + len(a_name)] = a_name[: total_samples - i_name]
+
+    # प्रत्येक वाक्य आफ्नो कार्ड फ्लिप हुँदा राख्ने (तुरुन्तै सुरु, कुनै कट-अफ बिना)
+    cur_t = C0_REL
+    for chunk_audio, c_dur in zip(chunks_audio, card_durations):
+        t_card = cur_t + 0.2
+        i_card = int(t_card * sr)
         end_c = min(total_samples, i_card + len(chunk_audio))
-        timeline[i_card:end_c] = chunk_audio[: end_c - i_card]
+        timeline[i_card : end_c] = chunk_audio[: end_c - i_card]
+        cur_t += c_dur
 
-    return timeline, total_dur
+    return timeline, total_dur, card_durations
 
 
 # ───────────────────────────────────────────────────────────
@@ -430,13 +443,32 @@ def main():
             name = sign.get("name", f"rashi_{s_idx+1}")
             out_wav = out_dir / f"_voice_{s_idx+1:02d}.wav"
 
-            print(f"   [{s_idx+1:02d}/12] {name} राशि: कार्ड अनुसार अडियो सिङ्किङ...", flush=True)
+            print(f"   [{s_idx+1:02d}/12] {name} राशि: पाठ अनुसार कार्डको समय सिङ्किङ...", flush=True)
             t_s = time.time()
-            s_audio, s_dur = generate_sign_audio(
+            s_audio, s_dur, c_durs = generate_sign_audio(
                 model, sign, s_idx, args.instruct, args.seed, args.speed, args.guidance, sr
             )
             sf.write(str(out_wav), s_audio, sr)
-            print(f"       ✓ {out_wav.name} तयार ({s_dur:.1f}s, taken {time.time()-t_s:.1f}s)", flush=True)
+
+            # Save timing metadata for video renderer
+            timing_file = out_dir / f"_timing_sign_{s_idx+1:02d}.json"
+            timing_file.write_text(
+                json.dumps({"si": s_idx, "name": name, "durations": c_durs, "total_dur": s_dur}, indent=2),
+                encoding="utf-8"
+            )
+
+            # Update content sentences with exact durations
+            for c_i, dur_val in enumerate(c_durs):
+                if c_i < len(signs[s_idx].get("sentences", [])):
+                    signs[s_idx]["sentences"][c_i]["dur"] = dur_val
+
+            print(f"       ✓ {out_wav.name} तयार ({s_dur:.1f}s, कार्ड समयहरू: {c_durs}, time: {time.time()-t_s:.1f}s)", flush=True)
+
+        # Update content.today.json with dynamic durations
+        try:
+            content_path.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
     # 3. Outro
     if do_outro:
