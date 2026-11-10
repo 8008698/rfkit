@@ -17,6 +17,8 @@ import fetch_content as fc
 
 MONTHS = ["बैशाख", "जेठ", "असार", "श्रावण", "भाद्र", "आश्विन", "कार्तिक", "मंसिर", "पौष", "माघ", "फाल्गुन", "चैत्र"]
 WEEK = ["सोमवार", "मंगलवार", "बुधवार", "बिहीवार", "शुक्रवार", "शनिवार", "आइतवार"]
+AD_MONTHS_NEP = ["जनवरी", "फेब्रुअरी", "मार्च", "अप्रिल", "मे", "जुन", "जुलाई", "अगस्ट", "सेप्टेम्बर", "अक्टोबर", "नोभेम्बर", "डिसेम्बर"]
+AD_MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 DEV_MAP = str.maketrans("0123456789", "०१२३४५६७८९")
 dev = lambda n: str(n).translate(DEV_MAP)
 
@@ -114,7 +116,7 @@ if not target_url:
     api_key = os.environ.get("NEPDATE_API_KEY", "")
     if a.free_api or not api_key:
         target_url = f"https://nepdate-api.khumnath.com.np/api/ai/today?rashifal=true&date={ad_iso}"
-        print(f"निःशुल्क NepDate AI API प्रयोग गर्दै (API Key आवश्यक छैन): {ad_iso}")
+        print(f"NepDate Live API प्रयोग गर्दै: {ad_iso}")
     else:
         target_url = api_cfg.get("url") or f"https://nepdate-api.khumnath.com.np/rashifal?date={ad_iso}&lang=ne&apiKey=${{NEPDATE_API_KEY}}"
         print(f"NepDate Enterprise API प्रयोग गर्दै")
@@ -147,7 +149,12 @@ try:
     if len(got) < 12:
         print(f"चेतावनी: १२ मध्ये {len(got)} राशि मात्र भेटियो")
 
-    # मिति अद्यावधिक
+    # मिति अद्यावधिक (Bikram Sambat + AD Date)
+    ad_m_nep = AD_MONTHS_NEP[ad.month - 1]
+    ad_m_en = AD_MONTHS_EN[ad.month - 1]
+    ad_spoken = f"सन् {dev(ad.year)} {ad_m_nep} {dev(ad.day)} तारिख"
+    ad_en_label = f"{ad.day} {ad_m_en} {ad.year}"
+
     if meta_date and "year" in meta_date:
         bs_year = meta_date["year"]
         bs_month = meta_date["month"]
@@ -158,7 +165,13 @@ try:
             "year": dev(bs_year),
             "month": m_name,
             "day": dev(bs_day),
-            "weekday": w_day
+            "weekday": w_day,
+            "ad": ad.isoformat(),
+            "ad_year": dev(ad.year),
+            "ad_month": ad_m_nep,
+            "ad_day": dev(ad.day),
+            "ad_en": ad_en_label,
+            "ad_spoken": ad_spoken
         }
         bs = (bs_year, bs_month, bs_day)
     else:
@@ -172,7 +185,13 @@ try:
                 "year": dev(bs[0]),
                 "month": MONTHS[bs[1] - 1],
                 "day": dev(bs[2]),
-                "weekday": WEEK[ad.weekday()]
+                "weekday": WEEK[ad.weekday()],
+                "ad": ad.isoformat(),
+                "ad_year": dev(ad.year),
+                "ad_month": ad_m_nep,
+                "ad_day": dev(ad.day),
+                "ad_en": ad_en_label,
+                "ad_spoken": ad_spoken
             }
         except Exception:
             pass

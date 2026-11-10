@@ -49,8 +49,8 @@ LOCAL_CANDIDATES = [
 # Timeline Constants from rashifal_video.js
 SL_SECONDS = 4.4    # न्यूनतम कार्ड समय (Base duration)
 C0_REL = 6.6        # राशि सुरु भएको कति सेकेन्डपछि कार्ड ० देखा पर्ने
-INTRO_DURATION = 14.0 # इन्ट्रोको कुल लम्बाइ
-OUTRO_DURATION = 4.8  # आउट्रोको कुल लम्बाइ
+INTRO_DURATION = 16.0 # इन्ट्रोको कुल लम्बाइ
+OUTRO_DURATION = 10.0 # आउट्रोको कुल लम्बाइ
 
 
 def calc_card_duration(text: str) -> float:
@@ -154,41 +154,49 @@ def generate_intro_audio(
 ) -> np.ndarray:
     """
     इन्ट्रो स्क्रिनमा अक्षरहरू देखा पर्ने समयसँग दुरुस्तै मिलाएर अडियो बनाउँछ।
-    - 2.0s: "आजको दैनिक राशिफल।"
-    - 4.3s: लाइन १ (स्वागत छ)
-    - 7.7s: लाइन २ (अन्त्यसम्म हेर्नुहोला)
-    - 10.8s: "सुरुमा मेष राशि।"
+    - 1.5s: "आजको दैनिक राशिफल।"
+    - 3.6s: "विक्रम संवत् {bs_year} साल {bs_month} {bs_day} गते {weekday}, तदनुसार {ad_spoken}।"
+    - 9.2s: "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ। भिडियो अन्त्यसम्म हेर्नुहोला।"
+    - 13.0s: "सुरु गरौं {first_sign} राशिबाट।"
     """
     total_samples = int(INTRO_DURATION * sr)
     timeline = np.zeros(total_samples, dtype=np.float32)
 
     intro_cfg = content.get("intro", {})
     lines = intro_cfg.get("lines", [
-        "नेपडेट पात्रोले तयार पारेको आजको राशिफलमा स्वागत छ।",
+        "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ।",
         "भिडियो अन्त्यसम्म हेर्नुहोला।"
     ])
+    d = content.get("date", {})
+    bs_year = d.get("year", "२०८३")
+    bs_month = d.get("month", "कार्तिक")
+    bs_day = d.get("day", "१६")
+    weekday = d.get("weekday", "सोमवार")
+    ad_spoken = d.get("ad_spoken", f"सन् {d.get('ad_year', '२०२६')} {d.get('ad_month', 'नोभेम्बर')} {d.get('ad_day', '१०')} तारिख")
     first_sign = content.get("signs", [{}])[0].get("name", "मेष")
 
-    # Cue 1: t = 2.0s
+    # Cue 1: t = 1.5s - आजको दैनिक राशिफल
     a1 = synthesize_text(model, "आजको दैनिक राशिफल।", instruct, seed, speed, guidance)
-    i1 = int(2.0 * sr)
+    i1 = int(1.5 * sr)
     timeline[i1 : i1 + len(a1)] = a1[: total_samples - i1]
 
-    # Cue 2: t = 4.3s
-    l1 = lines[0] if len(lines) > 0 else "नेपडेट पात्रोले तयार पारेको आजको राशिफलमा स्वागत छ।"
-    a2 = synthesize_text(model, l1, instruct, seed + 3, speed, guidance)
-    i2 = int(4.3 * sr)
+    # Cue 2: t = 3.6s - मिति (वि.सं. र तदनुसार ईस्वी संवत् AD मिति)
+    date_speech = f"विक्रम संवत् {bs_year} साल {bs_month} {bs_day} गते {weekday}, तदनुसार {ad_spoken}।"
+    a2 = synthesize_text(model, date_speech, instruct, seed + 2, speed, guidance)
+    i2 = int(3.6 * sr)
     timeline[i2 : i2 + len(a2)] = a2[: total_samples - i2]
 
-    # Cue 3: t = 7.7s
-    l2 = lines[1] if len(lines) > 1 else "भिडियो अन्त्यसम्म हेर्नुहोला।"
-    a3 = synthesize_text(model, l2, instruct, seed + 6, speed, guidance)
-    i3 = int(7.7 * sr)
+    # Cue 3: t = 9.2s - स्वागत तथा अनुरोध
+    welcome_text = "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ। भिडियो अन्त्यसम्म हेर्नुहोला।"
+    if lines and len(lines) > 0:
+        welcome_text = " ".join(lines)
+    a3 = synthesize_text(model, welcome_text, instruct, seed + 5, speed, guidance)
+    i3 = int(9.2 * sr)
     timeline[i3 : i3 + len(a3)] = a3[: total_samples - i3]
 
-    # Cue 4: t = 10.8s
-    a4 = synthesize_text(model, f"सुरु गरौं {first_sign} राशिबाट।", instruct, seed + 9, speed, guidance)
-    i4 = int(10.8 * sr)
+    # Cue 4: t = 13.0s - सुरु गरौं पहिलो राशिबाट
+    a4 = synthesize_text(model, f"सुरु गरौं {first_sign} राशिबाट।", instruct, seed + 8, speed, guidance)
+    i4 = int(13.0 * sr)
     timeline[i4 : i4 + len(a4)] = a4[: total_samples - i4]
 
     return timeline
@@ -270,9 +278,11 @@ def generate_outro_audio(
     sr: int = 24000
 ) -> np.ndarray:
     """
-    आउट्रो लोगो र एप डाउनलोड ब्याडसँग सिङ्क गरेर अडियो बनाउँछ।
-    - 0.8s: "हरेक दिनको विश्वास, नेपडेट।"
-    - 2.4s: "आजै गुगल प्ले स्टोरबाट नेपडेट एप डाउनलोड गर्नुहोस्। धन्यवाद।"
+    आउट्रो लोगो, ब्रान्डिङ र एप डाउनलोडसँग सिङ्क गरेर अडियो बनाउँछ।
+    भिडियो सकिनुभन्दा अगाडि नै अडियो प्राकृतिक रूपमा समाप्त हुन्छ (audio ends before video)।
+    - 0.8s: "{tagline}, नेपडेट।"
+    - 2.4s: "आजै गुगल प्ले स्टोरबाट नेपडेट डाउनलोड गर्नुहोस्। धन्यवाद, शुभ दिन रहोस्।"
+    (अडियो ~7.6s मा सकिन्छ, भिडियो 10.0s सम्म जारी रहन्छ र अन्त्यमा कालो फेड आउट हुन्छ)
     """
     total_samples = int(OUTRO_DURATION * sr)
     timeline = np.zeros(total_samples, dtype=np.float32)
@@ -285,7 +295,8 @@ def generate_outro_audio(
     timeline[i1 : i1 + len(a1)] = a1[: total_samples - i1]
 
     # Cue 2: t = 2.4s
-    a2 = synthesize_text(model, "आजै गुगल प्ले स्टोरबाट नेपडेट एप डाउनलोड गर्नुहोस्। धन्यवाद।", instruct, seed + 4, speed, guidance)
+    outro_cta = "आजै गुगल प्ले स्टोरबाट नेपडेट डाउनलोड गर्नुहोस्। धन्यवाद, शुभ दिन रहोस्।"
+    a2 = synthesize_text(model, outro_cta, instruct, seed + 4, speed, guidance)
     i2 = int(2.4 * sr)
     timeline[i2 : i2 + len(a2)] = a2[: total_samples - i2]
 

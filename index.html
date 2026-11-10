@@ -405,7 +405,7 @@ textarea {
         <div>
           <label>डेटा स्रोत (Data Mode)</label>
           <select id="in-source-mode">
-            <option value="free_api">निःशुल्क NepDate AI API (No Key)</option>
+            <option value="free_api">NepDate Live API (Default)</option>
             <option value="local_file">स्थानीय JSON फाइल (Upload File)</option>
             <option value="paid_api">NepDate Enterprise API (With Key)</option>
           </select>
@@ -726,13 +726,13 @@ function buildFull(content,assets,opts){
   const sub=opts.subset&&opts.subset.length?opts.subset.slice():[...Array(12).keys()];
   const intro=opts.intro!==undefined?opts.intro:sub[0]===0;
   const outro=opts.outro!==undefined?opts.outro:sub[sub.length-1]===11;
-  const sch=[];let cur=intro?14.0:0.8;
+  const sch=[];let cur=intro?16.0:0.8;
   sub.forEach(si=>{const sg=all[si];let sents=(sg.sentences||[]).map(x=>typeof x==="string"?{text:x}:x).filter(x=>x&&x.text&&x.text.trim());if(!sents.length)sents=[{text:"आजको राशिफल उपलब्ध छैन।"}];
     const k=sents.length;const c0=cur+6.6;let card_cur=c0;const cardTimes=[];
     sents.forEach(s=>{const dur=calcCardDur(s);cardTimes.push({c0:card_cur,dur:dur});card_cur+=dur;});
     const E=card_cur;
     sch.push({si,sg,S:cur,c0,E,sents,k,cardTimes,st:Math.max(0,Math.min(5,+sg.stars||0))});cur=E+0.8;});
-  const last=sch[sch.length-1];const O=last.E+0.2;const T=Math.round((outro?O+4.8:last.E+1.0)*10)/10;
+  const last=sch[sch.length-1];const O=last.E+0.2;const T=Math.round((outro?O+10.0:last.E+1.0)*10)/10;
   const p=s=>(Math.max(0,Math.min(T,s))/T*100).toFixed(3)+"%";
   const kfs=[];
   const K=(name,pts)=>{pts=pts.slice().sort((a,b)=>a[0]-b[0]);if(pts[0][0]>0)pts.unshift([0,pts[0][1]]);pts.push([T,pts[pts.length-1][1]]);kfs.push(`@keyframes ${name}{`+pts.map(([s,c])=>`${p(s)}{${c}}`).join("")+"}");};
@@ -781,13 +781,12 @@ function buildFull(content,assets,opts){
     K("cwh",[[0.2,"opacity:0;transform:scale(.3)"],[2.2,"opacity:1;transform:scale(1)"]]);
     K("cc",[[0.9,"opacity:0;transform:scale(.4)"],[1.8,"opacity:1;transform:scale(1.06)"],[2.2,"opacity:1;transform:scale(1)"]]);
     const O1=S0-1.0,O2=S0-0.5;
-    K("ct1",[[1.9,"opacity:0;transform:translateY(24px)"],[2.5,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
-    K("ct2",[[2.4,"opacity:0;transform:translateY(24px)"],[3.0,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
-    K("cdp",[[3.4,"opacity:0;transform:translateY(24px)"],[4.0,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
-    K("cl1",[[4.0,"opacity:0;transform:translateY(16px)"],[4.3,"opacity:1;transform:none"],[10.2,"opacity:1;transform:none"],[10.7,"opacity:0;transform:none"]]);
-    K("cl2",[[7.4,"opacity:0;transform:translateY(16px)"],[7.7,"opacity:1;transform:none"],[10.2,"opacity:1;transform:none"],[10.7,"opacity:0;transform:none"]]);
-    K("cnx",[[10.8,"opacity:0;transform:scale(.8)"],[11.4,"opacity:1;transform:scale(1)"],[O1,"opacity:1;transform:scale(1)"],[O2,"opacity:0;transform:scale(1)"]]);
-    ev.whoosh.push(0.2);ev.hits.push(1.9);
+    K("ct1",[[1.5,"opacity:0;transform:translateY(24px)"],[2.1,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
+    K("ct2",[[1.9,"opacity:0;transform:translateY(24px)"],[2.5,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
+    K("cdp",[[3.2,"opacity:0;transform:translateY(24px)"],[3.8,"opacity:1;transform:none"],[8.6,"opacity:1;transform:none"],[9.0,"opacity:0;transform:none"]]);
+    K("cl1",[[8.8,"opacity:0;transform:translateY(16px)"],[9.2,"opacity:1;transform:none"],[12.2,"opacity:1;transform:none"],[12.6,"opacity:0;transform:none"]]);
+    K("cnx",[[12.6,"opacity:0;transform:scale(.8)"],[13.1,"opacity:1;transform:scale(1)"],[O1,"opacity:1;transform:scale(1)"],[O2,"opacity:0;transform:scale(1)"]]);
+    ev.whoosh.push(0.2);ev.hits.push(1.5);
   } else K("cwh",[[0,"opacity:1;transform:none"]]);
   const sctr=sch.map((o,n)=>{const g=o.sg,nm=(g.name||""),nf=nm.length>6?60:nm.length>4?72:84;
     return `<div style="position:absolute;left:305px;top:205px;width:470px;height:470px;visibility:hidden;opacity:0;${A('sc'+n)}">
@@ -807,10 +806,9 @@ ${tw(30,0,0,71)}
 <div style="position:absolute;left:305px;top:205px;width:470px;height:470px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#F6F1FF);box-shadow:inset 0 0 40px rgba(124,58,237,.18),0 0 40px rgba(255,255,255,.6);${intro?A('cc'):''}"></div>
 ${intro?`<div style="position:absolute;left:305px;top:290px;width:470px;text-align:center;font-size:92px;line-height:1.5;font-weight:700;color:#6B21A8;opacity:0;${A('ct1')}">आजको</div>
 <div style="position:absolute;left:305px;top:390px;width:470px;text-align:center;font-size:96px;line-height:1.5;font-weight:700;color:#F97316;opacity:0;${A('ct2')}">राशिफल</div>
-<div style="position:absolute;left:0;top:868px;width:1080px;text-align:center;opacity:0;${A('cdp')}"><span style="display:inline-block;padding:8px 30px;border-radius:40px;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.7);color:#fff;font-size:32px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.25)">${esc(IN.prefix||"आज")} · <span class="dg">${esc(d.year)}</span> ${esc(d.month)} <span class="dg">${esc(d.day)}</span> गते ${esc(d.weekday)}</span></div>
-<div style="position:absolute;left:40px;top:940px;width:1000px;text-align:center;font-size:33px;line-height:1.5;font-weight:600;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.35);opacity:0;${A('cl1')}">${typed(lines[0]||"",4.3,.05)}</div>
-<div style="position:absolute;left:40px;top:998px;width:1000px;text-align:center;font-size:33px;line-height:1.5;font-weight:600;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.35);opacity:0;${A('cl2')}">${typed(lines[1]||"",7.7,.05)}</div>
-<div style="position:absolute;left:0;top:960px;width:1080px;text-align:center;opacity:0;${A('cnx')}"><span style="display:inline-block;padding:10px 38px;border-radius:44px;background:linear-gradient(100deg,#FFD66B,#FFB347);color:#5B1A8C;font-size:40px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25)">सुरुमा — ${esc(first.name)} राशि →</span></div>`:""}
+<div style="position:absolute;left:0;top:845px;width:1080px;text-align:center;opacity:0;${A('cdp')}"><div style="display:inline-block;padding:12px 36px;border-radius:44px;background:rgba(255,255,255,.24);border:2px solid rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(0,0,0,.3);text-shadow:0 2px 8px rgba(0,0,0,.4)"><div style="font-size:32px;font-weight:700;color:#fff">वि.सं. <span class="dg">${esc(d.year)}</span> ${esc(d.month)} <span class="dg">${esc(d.day)}</span> गते ${esc(d.weekday)}</div><div style="margin-top:4px;font-size:22px;font-weight:600;color:#FFE9A8;letter-spacing:1px">तदनुसार सन् <span class="dg">${esc(d.ad_year||'२०२६')}</span> ${esc(d.ad_month||'नोभेम्बर')} <span class="dg">${esc(d.ad_day||'१०')}</span> ${d.ad_en?`(${esc(d.ad_en)})`:''}</div></div></div>
+<div style="position:absolute;left:40px;top:920px;width:1000px;text-align:center;font-size:33px;line-height:1.5;font-weight:600;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.35);opacity:0;${A('cl1')}">${typed(lines[0]||"",9.2,.035)}</div>
+<div style="position:absolute;left:0;top:920px;width:1080px;text-align:center;opacity:0;${A('cnx')}"><span style="display:inline-block;padding:12px 42px;border-radius:44px;background:linear-gradient(100deg,#FFD66B,#FFB347);color:#5B1A8C;font-size:40px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25)">सुरुमा — ${esc(first.name)} राशि →</span></div>`:""}
 ${sctr}</div>
 <div style="position:absolute;left:-302px;top:-302px;width:1684px;height:1684px;box-sizing:border-box;border-radius:50%;border:10px solid #fff;box-shadow:0 0 60px 10px rgba(255,255,255,.7);opacity:0;${A('dkR')}"></div>`;
   // ---------- main (white) layer ----------
@@ -852,7 +850,14 @@ ${cardsH}</div>`;}).join("");
   const dotsH=[...Array(12)].map((_,j)=>{const n=sch.findIndex(o=>o.si===j);if(n>=0){const o=sch[n];K(`dt${j}`,[[0,"background:#D1D5DB;width:10px"],[o.S+4.0,"background:#D1D5DB;width:10px"],[o.S+4.4,"background:#D32F2F;width:26px"],[o.E+0.7,"background:#D32F2F;width:26px"],[o.E+0.8,"background:#E5E7EB;width:10px"]]);}
     return `<div style="height:10px;width:10px;border-radius:5px;background:#D1D5DB;${n>=0?`animation:dt${j} ${T}s linear infinite`:""}"></div>`;}).join("");
   const tag=esc(content.tagline||"हरेक दिनको विश्वास");
-  K("ov",[[O,"opacity:0"],[O+.8,"opacity:1"]]);K("ovl",[[O+.4,"opacity:0;transform:scale(.7)"],[O+1.3,"opacity:1;transform:scale(1)"]]);rv("ovt",O+1.5);rv("ovb",O+1.9);
+  K("ov",[[O,"opacity:0"],[O+.6,"opacity:1"]]);
+  K("ovl",[[O+.3,"opacity:0;transform:scale(.6) translateY(24px)"],[O+1.1,"opacity:1;transform:scale(1) translateY(0)"]]);
+  K("ovt",[[O+1.1,"opacity:0;transform:translateY(20px)"],[O+1.6,"opacity:1;transform:none"]]);
+  K("ovtag",[[O+1.5,"opacity:0;transform:translateY(18px)"],[O+2.0,"opacity:1;transform:none"]]);
+  K("ovsub",[[O+2.0,"opacity:0;transform:translateY(16px)"],[O+2.5,"opacity:1;transform:none"]]);
+  K("ovb",[[O+2.5,"opacity:0;transform:scale(.85) translateY(14px)"],[O+3.1,"opacity:1;transform:scale(1) translateY(0)"]]);
+  K("ovthx",[[O+3.3,"opacity:0;transform:translateY(14px) scale(.9)"],[O+3.9,"opacity:1;transform:none scale(1)"]]);
+  if(outro)K("vfade",[[O+8.4,"opacity:0"],[O+9.8,"opacity:1"]]);
   const MAIN=`<div style="position:absolute;inset:0;background:radial-gradient(circle at 90% 6%,rgba(245,196,81,.16),transparent 34%),radial-gradient(circle at 6% 96%,rgba(59,130,224,.10),transparent 36%),#fff;overflow:hidden">
 <div style="position:absolute;left:140px;top:200px;width:800px;height:800px;color:#B08A3C;opacity:.13;animation:spin 90s linear infinite">${wheel}</div>
 <div style="position:absolute;left:64px;top:26px;padding-top:20px;font-size:58px;line-height:1.2;font-weight:700;color:transparent;background:linear-gradient(100deg,#3B82E0 40%,#A9CBFF 50%,#3B82E0 60%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;opacity:0;${A('h1')},sheen 4s linear infinite">दैनिक<br>राशिफल</div>
@@ -866,11 +871,31 @@ ${signsH}
 <div style="position:absolute;left:130px;top:12px;width:620px"><div style="font-size:19px;font-weight:600;color:#FFD66B;letter-spacing:1px">${tag}</div><div style="margin-top:2px;font-size:29px;line-height:1.35;font-weight:700;color:#fff">NepDate डाउनलोड गर्नुहोस्</div><div style="margin-top:2px;font-size:16px;font-weight:500;color:#CFE0FF">पञ्चाङ्ग · राशिफल · कुण्डली · शुभ साइत</div></div>
 <img src="${assets.badge}" alt="Google Play" style="position:absolute;left:770px;top:26px;width:200px;height:62px;border-radius:10px;box-shadow:0 0 0 2px rgba(255,255,255,.35);animation:pulse 2.2s ease-in-out infinite"></div>
 </div>`;
-  const OUT=outro?`<div style="position:absolute;inset:0;background:#fff;opacity:0;display:flex;flex-direction:column;align-items:center;justify-content:center;${A('ov')}"><img src="${assets.logo}" alt="NepDate" style="width:340px;height:310px;object-fit:contain;opacity:0;${A('ovl')},glow 2.5s ease-in-out infinite"><div style="margin-top:14px;font-size:46px;font-weight:700;color:#3B82E0;opacity:0;${A('ovt')}">${tag}</div><img src="${assets.badge}" alt="Google Play" style="margin-top:34px;width:300px;height:93px;opacity:0;${A('ovb')}"></div>`:"";
+  const OUT=outro?`<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 25%,#FFFFFF 0%,#F4F7FE 55%,#E5EDFC 100%);opacity:0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;${A('ov')}">
+<div style="position:absolute;left:140px;top:140px;width:800px;height:800px;color:#3B82E0;opacity:.06;animation:spin 90s linear infinite">${wheel}</div>
+<div style="position:relative;width:280px;height:250px;display:flex;align-items:center;justify-content:center">
+<div style="position:absolute;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,224,.22) 0%,rgba(245,196,81,.18) 45%,transparent 70%);animation:aura 4s ease-in-out infinite"></div>
+<img src="${assets.logo}" alt="NepDate" style="position:relative;width:250px;height:230px;object-fit:contain;filter:drop-shadow(0 14px 28px rgba(31,58,125,.22));opacity:0;${A('ovl')}">
+</div>
+<div style="margin-top:10px;font-size:52px;line-height:1.2;font-weight:800;background:linear-gradient(120deg,#1E3A8A 0%,#3B82E0 50%,#7C3AED 100%);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:1px;opacity:0;${A('ovt')}">NepDate · नेपडेट</div>
+<div style="margin-top:8px;font-size:30px;line-height:1.3;font-weight:700;color:#DC2626;letter-spacing:1px;opacity:0;${A('ovtag')}">${tag}</div>
+<div style="margin-top:16px;display:flex;gap:12px;opacity:0;${A('ovsub')}">
+<span style="padding:6px 18px;border-radius:20px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);color:#1E40AF;font-size:20px;font-weight:600">पञ्चाङ्ग</span>
+<span style="padding:6px 18px;border-radius:20px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.25);color:#B91C1C;font-size:20px;font-weight:600">दैनिक राशिफल</span>
+<span style="padding:6px 18px;border-radius:20px;background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.3);color:#B45309;font-size:20px;font-weight:600">कुण्डली</span>
+<span style="padding:6px 18px;border-radius:20px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);color:#6D28D9;font-size:20px;font-weight:600">शुभ साइत</span>
+</div>
+<div style="margin-top:26px;display:flex;flex-direction:column;align-items:center;opacity:0;${A('ovb')}">
+<div style="font-size:20px;font-weight:700;color:#4B5563;margin-bottom:8px;letter-spacing:.5px">गुगल प्ले स्टोरबाट आजै डाउनलोड गर्नुहोस्</div>
+<img src="${assets.badge}" alt="Google Play" style="width:260px;height:80px;object-fit:contain;filter:drop-shadow(0 8px 18px rgba(0,0,0,.15));animation:pulse 2.2s ease-in-out infinite">
+</div>
+<div style="margin-top:20px;padding:10px 32px;border-radius:30px;background:linear-gradient(90deg,rgba(59,130,224,.12),rgba(124,58,237,.12));border:1.5px solid rgba(59,130,224,.35);box-shadow:0 6px 16px rgba(59,130,224,.1);color:#1E3A8A;font-size:24px;font-weight:700;opacity:0;${A('ovthx')}">धन्यवाद! यहाँको दिन शुभ रहोस् 🙏</div>
+</div>`:"";
   if(outro)ev.whoosh.push(O-0.1);
   const css=STAT+"\n"+kfs.join("\n");
   const loop=opts.loop?`animation:relo ${T}s linear infinite;`:"";
-  const root=`<div style="position:relative;width:1080px;height:1080px;overflow:hidden;background:#07081F;${F}${loop}">${MAIN}${CL}${OUT}<div style="position:absolute;left:0;top:0;width:1080px;height:7px;background:linear-gradient(90deg,#FFD66B,#E1306C,#8E2DE2);transform-origin:0 0;transform:scaleX(0);animation:pb ${T}s linear infinite"></div></div>`;
+  const FADE=outro?`<div style="position:absolute;inset:0;background:#000;pointer-events:none;opacity:0;z-index:999;${A('vfade')}"></div>`:"";
+  const root=`<div style="position:relative;width:1080px;height:1080px;overflow:hidden;background:#07081F;${F}${loop}">${MAIN}${CL}${OUT}${FADE}<div style="position:absolute;left:0;top:0;width:1080px;height:7px;background:linear-gradient(90deg,#FFD66B,#E1306C,#8E2DE2);transform-origin:0 0;transform:scaleX(0);animation:pb ${T}s linear infinite"></div></div>`;
   return {css,root,T,ev,sections:{intro:intro?0:null,signs:sch.map(o=>({si:o.si,S:o.S,c0:o.c0,E:o.E})),out:outro?O:null}};
 }
 function doc(r){return `<!doctype html><html lang="ne"><head><meta charset="utf-8"><link href="${FONTS}" rel="stylesheet"><style>${r.css}</style></head><body>${r.root}</body></html>`;}
