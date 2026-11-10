@@ -49,7 +49,7 @@ LOCAL_CANDIDATES = [
 # Timeline Constants from rashifal_video.js
 SL_SECONDS = 4.4    # न्यूनतम कार्ड समय (Base duration)
 C0_REL = 6.6        # राशि सुरु भएको कति सेकेन्डपछि कार्ड ० देखा पर्ने
-INTRO_DURATION = 16.0 # इन्ट्रोको कुल लम्बाइ
+INTRO_DURATION = 18.0 # इन्ट्रोको कुल लम्बाइ
 OUTRO_DURATION = 10.0 # आउट्रोको कुल लम्बाइ
 
 
@@ -109,6 +109,61 @@ def load_model(model_source: str, device: str):
     return model
 
 
+DEV_TO_LATIN = str.maketrans("०१२३४५६७८९", "0123456789")
+
+WORDS_0_99 = [
+    "शून्य", "एक", "दुई", "तीन", "चार", "पाँच", "छ", "सात", "आठ", "नौ",
+    "दश", "एघार", "बाह्र", "तेह्र", "चौध", "पन्ध्र", "सोह्र", "सत्र", "अठार", "उन्नाइस",
+    "बीस", "एक्काइस", "बाइस", "तेइस", "चौबिस", "पच्चिस", "छब्बीस", "सत्ताइस", "अट्ठाइस", "उनन्तिस",
+    "तीस", "एकत्तिस", "बत्तिस", "तेत्तिस", "चौँतिस", "पैँतिस", "छत्तीस", "सैँतिस", "अड्तीस", "उनन्चालीस",
+    "चालीस", "एकचालीस", "बयानलीस", "त्रिचालीस", "चौवालिस", "पैँतालीस", "छयालीस", "सत्चालीस", "अड्चालीस", "उनन्पचास",
+    "पचास", "एकाउन्न", "बाउन्न", "त्रिपन्न", "चौवन्न", "पचपन्न", "छपन्न", "सन्ताउन्न", "अन्ठाउन्न", "उनन्साठी",
+    "साठी", "एकसट्ठी", "बासट्ठी", "त्रिसट्ठी", "चौँसट्ठी", "पैँसट्ठी", "छयसट्ठी", "सतसट्ठी", "अठसट्ठी", "उनन्सत्तरी",
+    "सत्तरी", "एकहत्तर", "बहत्तर", "त्रिहत्तर", "चौहत्तर", "पचहत्तर", "छहत्तर", "सतहत्तर", "अठहत्तर", "उन्यासी",
+    "असी", "एकासी", "बयासी", "त्रियासी", "चौरासी", "पचासी", "छयासी", "सत्तासी", "अठासी", "उनन्नब्बे",
+    "नब्बे", "एकानब्बे", "बयानब्बे", "त्रियानब्बे", "चौरानब्बे", "पन्चानब्बे", "छ्यानब्बे", "सन्तानब्बे", "अन्ठानब्बे", "उनन्सय"
+]
+
+
+def num_to_nepali_words(n: int) -> str:
+    """पूर्णाङ्क संख्यालाई नेपाली शब्दमा रूपान्तरण गर्छ।"""
+    if n < 0:
+        return "माइनस " + num_to_nepali_words(-n)
+    if n < 100:
+        return WORDS_0_99[n]
+    if n < 1000:
+        hundreds = n // 100
+        rem = n % 100
+        h_str = (WORDS_0_99[hundreds] + " सय") if hundreds > 0 else ""
+        return (h_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    if n < 100000:
+        thousands = n // 1000
+        rem = n % 1000
+        t_str = num_to_nepali_words(thousands) + " हजार"
+        return (t_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    if n < 10000000:
+        lakhs = n // 100000
+        rem = n % 100000
+        l_str = num_to_nepali_words(lakhs) + " लाख"
+        return (l_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    crores = n // 10000000
+    rem = n % 10000000
+    c_str = num_to_nepali_words(crores) + " करोड"
+    return (c_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+
+
+def verbalize_numbers(text: str) -> str:
+    """कुनै पनि वाक्यमा रहेका अंकहरूलाई देवनागरी शब्दमा रूपान्तरण गर्छ।"""
+    import re
+    def repl(m):
+        raw = m.group(0).translate(DEV_TO_LATIN)
+        try:
+            return num_to_nepali_words(int(raw))
+        except Exception:
+            return m.group(0)
+    return re.sub(r"[०-९0-9]+", repl, text)
+
+
 def synthesize_text(
     model,
     text: str,
@@ -119,11 +174,12 @@ def synthesize_text(
     lang: str = "npi",
     num_step: int = 16
 ) -> np.ndarray:
-    """Synthesizes clean speech for a single text segment."""
+    """Synthesizes clean speech for a single text segment (auto-verbalizing numbers)."""
+    verbalized = verbalize_numbers(text.strip())
     torch.manual_seed(seed)
     np.random.seed(seed)
     res = model.generate(
-        text=text.strip(),
+        text=verbalized,
         language=lang,
         instruct=instruct,
         speed=speed,
@@ -154,10 +210,11 @@ def generate_intro_audio(
 ) -> np.ndarray:
     """
     इन्ट्रो स्क्रिनमा अक्षरहरू देखा पर्ने समयसँग दुरुस्तै मिलाएर अडियो बनाउँछ।
+    सबै अंकहरू (वि.सं. र ई.सं. मिति) शुद्ध नेपाली शब्दमा वाचन गरिन्छ।
     - 1.5s: "आजको दैनिक राशिफल।"
-    - 3.6s: "विक्रम संवत् {bs_year} साल {bs_month} {bs_day} गते {weekday}, तदनुसार {ad_spoken}।"
-    - 9.2s: "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ। भिडियो अन्त्यसम्म हेर्नुहोला।"
-    - 13.0s: "सुरु गरौं {first_sign} राशिबाट।"
+    - 3.4s: "विक्रम संवत् दुई हजार त्रियासी साल कार्तिक सोह्र गते सोमवार, तदनुसार सन् दुई हजार छब्बीस नोभेम्बर दश तारिख।"
+    - 12.0s: "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ।"
+    - 14.8s: "सुरु गरौं {first_sign} राशिबाट।"
     """
     total_samples = int(INTRO_DURATION * sr)
     timeline = np.zeros(total_samples, dtype=np.float32)
@@ -180,23 +237,27 @@ def generate_intro_audio(
     i1 = int(1.5 * sr)
     timeline[i1 : i1 + len(a1)] = a1[: total_samples - i1]
 
-    # Cue 2: t = 3.6s - मिति (वि.सं. र तदनुसार ईस्वी संवत् AD मिति)
-    date_speech = f"विक्रम संवत् {bs_year} साल {bs_month} {bs_day} गते {weekday}, तदनुसार {ad_spoken}।"
+    # Cue 2: t = 3.4s - मिति (वि.सं. र तदनुसार ईस्वी संवत् AD मिति पूर्ण नेपाली शब्दमा)
+    date_speech = d.get("full_spoken")
+    if not date_speech:
+        bs_spoken = d.get("bs_spoken") or f"विक्रम संवत् {bs_year} साल {bs_month} {bs_day} गते {weekday}"
+        date_speech = f"{bs_spoken}, तदनुसार {ad_spoken}।"
+    date_speech = verbalize_numbers(date_speech)
     a2 = synthesize_text(model, date_speech, instruct, seed + 2, speed, guidance)
-    i2 = int(3.6 * sr)
+    i2 = int(3.4 * sr)
     timeline[i2 : i2 + len(a2)] = a2[: total_samples - i2]
 
-    # Cue 3: t = 9.2s - स्वागत तथा अनुरोध
-    welcome_text = "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ। भिडियो अन्त्यसम्म हेर्नुहोला।"
+    # Cue 3: t = 12.0s - स्वागत सन्देश
+    welcome_text = "नेपडेट पात्रोमा यहाँहरुलाई हार्दिक स्वागत छ।"
     if lines and len(lines) > 0:
-        welcome_text = " ".join(lines)
+        welcome_text = lines[0]
     a3 = synthesize_text(model, welcome_text, instruct, seed + 5, speed, guidance)
-    i3 = int(9.2 * sr)
+    i3 = int(12.0 * sr)
     timeline[i3 : i3 + len(a3)] = a3[: total_samples - i3]
 
-    # Cue 4: t = 13.0s - सुरु गरौं पहिलो राशिबाट
+    # Cue 4: t = 14.8s - सुरु गरौं पहिलो राशिबाट
     a4 = synthesize_text(model, f"सुरु गरौं {first_sign} राशिबाट।", instruct, seed + 8, speed, guidance)
-    i4 = int(13.0 * sr)
+    i4 = int(14.8 * sr)
     timeline[i4 : i4 + len(a4)] = a4[: total_samples - i4]
 
     return timeline

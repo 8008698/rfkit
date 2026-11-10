@@ -44,7 +44,7 @@ function buildFull(content,assets,opts){
   const sub=opts.subset&&opts.subset.length?opts.subset.slice():[...Array(12).keys()];
   const intro=opts.intro!==undefined?opts.intro:sub[0]===0;
   const outro=opts.outro!==undefined?opts.outro:sub[sub.length-1]===11;
-  const sch=[];let cur=intro?16.0:0.8;
+  const sch=[];let cur=intro?18.0:0.8;
   sub.forEach(si=>{const sg=all[si];let sents=(sg.sentences||[]).map(x=>typeof x==="string"?{text:x}:x).filter(x=>x&&x.text&&x.text.trim());if(!sents.length)sents=[{text:"आजको राशिफल उपलब्ध छैन।"}];
     const k=sents.length;const c0=cur+6.6;let card_cur=c0;const cardTimes=[];
     sents.forEach(s=>{const dur=calcCardDur(s);cardTimes.push({c0:card_cur,dur:dur});card_cur+=dur;});
@@ -101,9 +101,9 @@ function buildFull(content,assets,opts){
     const O1=S0-1.0,O2=S0-0.5;
     K("ct1",[[1.5,"opacity:0;transform:translateY(24px)"],[2.1,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
     K("ct2",[[1.9,"opacity:0;transform:translateY(24px)"],[2.5,"opacity:1;transform:none"],[O1,"opacity:1;transform:none"],[O2,"opacity:0;transform:none"]]);
-    K("cdp",[[3.2,"opacity:0;transform:translateY(24px)"],[3.8,"opacity:1;transform:none"],[8.6,"opacity:1;transform:none"],[9.0,"opacity:0;transform:none"]]);
-    K("cl1",[[8.8,"opacity:0;transform:translateY(16px)"],[9.2,"opacity:1;transform:none"],[12.2,"opacity:1;transform:none"],[12.6,"opacity:0;transform:none"]]);
-    K("cnx",[[12.6,"opacity:0;transform:scale(.8)"],[13.1,"opacity:1;transform:scale(1)"],[O1,"opacity:1;transform:scale(1)"],[O2,"opacity:0;transform:scale(1)"]]);
+    K("cdp",[[3.0,"opacity:0;transform:translateY(24px)"],[3.6,"opacity:1;transform:none"],[11.6,"opacity:1;transform:none"],[12.0,"opacity:0;transform:none"]]);
+    K("cl1",[[12.0,"opacity:0;transform:translateY(16px)"],[12.4,"opacity:1;transform:none"],[14.4,"opacity:1;transform:none"],[14.8,"opacity:0;transform:none"]]);
+    K("cnx",[[14.8,"opacity:0;transform:scale(.8)"],[15.3,"opacity:1;transform:scale(1)"],[O1,"opacity:1;transform:scale(1)"],[O2,"opacity:0;transform:scale(1)"]]);
     ev.whoosh.push(0.2);ev.hits.push(1.5);
   } else K("cwh",[[0,"opacity:1;transform:none"]]);
   const sctr=sch.map((o,n)=>{const g=o.sg,nm=(g.name||""),nf=nm.length>6?60:nm.length>4?72:84;
@@ -125,7 +125,7 @@ ${tw(30,0,0,71)}
 ${intro?`<div style="position:absolute;left:305px;top:290px;width:470px;text-align:center;font-size:92px;line-height:1.5;font-weight:700;color:#6B21A8;opacity:0;${A('ct1')}">आजको</div>
 <div style="position:absolute;left:305px;top:390px;width:470px;text-align:center;font-size:96px;line-height:1.5;font-weight:700;color:#F97316;opacity:0;${A('ct2')}">राशिफल</div>
 <div style="position:absolute;left:0;top:845px;width:1080px;text-align:center;opacity:0;${A('cdp')}"><div style="display:inline-block;padding:12px 36px;border-radius:44px;background:rgba(255,255,255,.24);border:2px solid rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(0,0,0,.3);text-shadow:0 2px 8px rgba(0,0,0,.4)"><div style="font-size:32px;font-weight:700;color:#fff">वि.सं. <span class="dg">${esc(d.year)}</span> ${esc(d.month)} <span class="dg">${esc(d.day)}</span> गते ${esc(d.weekday)}</div><div style="margin-top:4px;font-size:22px;font-weight:600;color:#FFE9A8;letter-spacing:1px">तदनुसार सन् <span class="dg">${esc(d.ad_year||'२०२६')}</span> ${esc(d.ad_month||'नोभेम्बर')} <span class="dg">${esc(d.ad_day||'१०')}</span> ${d.ad_en?`(${esc(d.ad_en)})`:''}</div></div></div>
-<div style="position:absolute;left:40px;top:920px;width:1000px;text-align:center;font-size:33px;line-height:1.5;font-weight:600;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.35);opacity:0;${A('cl1')}">${typed(lines[0]||"",9.2,.035)}</div>
+<div style="position:absolute;left:40px;top:920px;width:1000px;text-align:center;font-size:33px;line-height:1.5;font-weight:600;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.35);opacity:0;${A('cl1')}">${typed(lines[0]||"",12.4,.035)}</div>
 <div style="position:absolute;left:0;top:920px;width:1080px;text-align:center;opacity:0;${A('cnx')}"><span style="display:inline-block;padding:12px 42px;border-radius:44px;background:linear-gradient(100deg,#FFD66B,#FFB347);color:#5B1A8C;font-size:40px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25)">सुरुमा — ${esc(first.name)} राशि →</span></div>`:""}
 ${sctr}</div>
 <div style="position:absolute;left:-302px;top:-302px;width:1684px;height:1684px;box-sizing:border-box;border-radius:50%;border:10px solid #fff;box-shadow:0 0 60px 10px rgba(255,255,255,.7);opacity:0;${A('dkR')}"></div>`;

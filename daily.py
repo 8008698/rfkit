@@ -20,7 +20,58 @@ WEEK = ["सोमवार", "मंगलवार", "बुधवार", "�
 AD_MONTHS_NEP = ["जनवरी", "फेब्रुअरी", "मार्च", "अप्रिल", "मे", "जुन", "जुलाई", "अगस्ट", "सेप्टेम्बर", "अक्टोबर", "नोभेम्बर", "डिसेम्बर"]
 AD_MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 DEV_MAP = str.maketrans("0123456789", "०१२३४५६७८९")
+DEV_TO_LATIN = str.maketrans("०१२३४५६७८९", "0123456789")
 dev = lambda n: str(n).translate(DEV_MAP)
+
+WORDS_0_99 = [
+    "शून्य", "एक", "दुई", "तीन", "चार", "पाँच", "छ", "सात", "आठ", "नौ",
+    "दश", "एघार", "बाह्र", "तेह्र", "चौध", "पन्ध्र", "सोह्र", "सत्र", "अठार", "उन्नाइस",
+    "बीस", "एक्काइस", "बाइस", "तेइस", "चौबिस", "पच्चिस", "छब्बीस", "सत्ताइस", "अट्ठाइस", "उनन्तिस",
+    "तीस", "एकत्तिस", "बत्तिस", "तेत्तिस", "चौँतिस", "पैँतिस", "छत्तीस", "सैँतिस", "अड्तीस", "उनन्चालीस",
+    "चालीस", "एकचालीस", "बयानलीस", "त्रिचालीस", "चौवालिस", "पैँतालीस", "छयालीस", "सत्चालीस", "अड्चालीस", "उनन्पचास",
+    "पचास", "एकाउन्न", "बाउन्न", "त्रिपन्न", "चौवन्न", "पचपन्न", "छपन्न", "सन्ताउन्न", "अन्ठाउन्न", "उनन्साठी",
+    "साठी", "एकसट्ठी", "बासट्ठी", "त्रिसट्ठी", "चौँसट्ठी", "पैँसट्ठी", "छयसट्ठी", "सतसट्ठी", "अठसट्ठी", "उनन्सत्तरी",
+    "सत्तरी", "एकहत्तर", "बहत्तर", "त्रिहत्तर", "चौहत्तर", "पचहत्तर", "छहत्तर", "सतहत्तर", "अठहत्तर", "उन्यासी",
+    "असी", "एकासी", "बयासी", "त्रियासी", "चौरासी", "पचासी", "छयासी", "सत्तासी", "अठासी", "उनन्नब्बे",
+    "नब्बे", "एकानब्बे", "बयानब्बे", "त्रियानब्बे", "चौरानब्बे", "पन्चानब्बे", "छ्यानब्बे", "सन्तानब्बे", "अन्ठानब्बे", "उनन्सय"
+]
+
+def num_to_nepali_words(n: int) -> str:
+    """पूर्णाङ्क संख्यालाई नेपाली शब्दमा रूपान्तरण गर्छ।"""
+    if n < 0:
+        return "माइनस " + num_to_nepali_words(-n)
+    if n < 100:
+        return WORDS_0_99[n]
+    if n < 1000:
+        hundreds = n // 100
+        rem = n % 100
+        h_str = (WORDS_0_99[hundreds] + " सय") if hundreds > 0 else ""
+        return (h_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    if n < 100000:
+        thousands = n // 1000
+        rem = n % 1000
+        t_str = num_to_nepali_words(thousands) + " हजार"
+        return (t_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    if n < 10000000:
+        lakhs = n // 100000
+        rem = n % 100000
+        l_str = num_to_nepali_words(lakhs) + " लाख"
+        return (l_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+    crores = n // 10000000
+    rem = n % 10000000
+    c_str = num_to_nepali_words(crores) + " करोड"
+    return (c_str + (" " + num_to_nepali_words(rem) if rem else "")).strip()
+
+def verbalize_numbers(text: str) -> str:
+    """कुनै पनि वाक्यमा रहेका अंकहरूलाई देवनागरी शब्दमा रूपान्तरण गर्छ।"""
+    import re
+    def repl(m):
+        raw = m.group(0).translate(DEV_TO_LATIN)
+        try:
+            return num_to_nepali_words(int(raw))
+        except Exception:
+            return m.group(0)
+    return re.sub(r"[०-९0-9]+", repl, text)
 
 ap = argparse.ArgumentParser(description="NepDate दैनिक राशिफल भिडियो स्वचालन किट")
 ap.add_argument("--config", default="config.json", help="कन्फिग फाइल (default: config.json)")
@@ -149,10 +200,12 @@ try:
     if len(got) < 12:
         print(f"चेतावनी: १२ मध्ये {len(got)} राशि मात्र भेटियो")
 
-    # मिति अद्यावधिक (Bikram Sambat + AD Date)
+    # मिति अद्यावधिक (Bikram Sambat + AD Date — Text & Spoken Words)
     ad_m_nep = AD_MONTHS_NEP[ad.month - 1]
     ad_m_en = AD_MONTHS_EN[ad.month - 1]
-    ad_spoken = f"सन् {dev(ad.year)} {ad_m_nep} {dev(ad.day)} तारिख"
+    ad_words_year = num_to_nepali_words(ad.year)
+    ad_words_day = num_to_nepali_words(ad.day)
+    ad_spoken = f"सन् {ad_words_year} {ad_m_nep} {ad_words_day} तारिख"
     ad_en_label = f"{ad.day} {ad_m_en} {ad.year}"
 
     if meta_date and "year" in meta_date:
@@ -161,17 +214,26 @@ try:
         bs_day = meta_date["day"]
         m_name = meta_date.get("monthName") or MONTHS[bs_month - 1]
         w_day = meta_date.get("dayOfWeek") or WEEK[ad.weekday()]
+        bs_words_year = num_to_nepali_words(bs_year)
+        bs_words_day = num_to_nepali_words(bs_day)
+        bs_spoken = f"विक्रम संवत् {bs_words_year} साल {m_name} {bs_words_day} गते {w_day}"
         content["date"] = {
             "year": dev(bs_year),
             "month": m_name,
             "day": dev(bs_day),
             "weekday": w_day,
+            "year_words": bs_words_year,
+            "day_words": bs_words_day,
             "ad": ad.isoformat(),
             "ad_year": dev(ad.year),
             "ad_month": ad_m_nep,
             "ad_day": dev(ad.day),
+            "ad_year_words": ad_words_year,
+            "ad_day_words": ad_words_day,
             "ad_en": ad_en_label,
-            "ad_spoken": ad_spoken
+            "ad_spoken": ad_spoken,
+            "bs_spoken": bs_spoken,
+            "full_spoken": f"{bs_spoken}, तदनुसार {ad_spoken}।"
         }
         bs = (bs_year, bs_month, bs_day)
     else:
@@ -181,17 +243,28 @@ try:
             import nepali_datetime
             n = nepali_datetime.date.from_datetime_date(ad)
             bs = (n.year, n.month, n.day)
+            bs_words_year = num_to_nepali_words(bs[0])
+            bs_words_day = num_to_nepali_words(bs[2])
+            m_name = MONTHS[bs[1] - 1]
+            w_day = WEEK[ad.weekday()]
+            bs_spoken = f"विक्रम संवत् {bs_words_year} साल {m_name} {bs_words_day} गते {w_day}"
             content["date"] = {
                 "year": dev(bs[0]),
-                "month": MONTHS[bs[1] - 1],
+                "month": m_name,
                 "day": dev(bs[2]),
-                "weekday": WEEK[ad.weekday()],
+                "weekday": w_day,
+                "year_words": bs_words_year,
+                "day_words": bs_words_day,
                 "ad": ad.isoformat(),
                 "ad_year": dev(ad.year),
                 "ad_month": ad_m_nep,
                 "ad_day": dev(ad.day),
+                "ad_year_words": ad_words_year,
+                "ad_day_words": ad_words_day,
                 "ad_en": ad_en_label,
-                "ad_spoken": ad_spoken
+                "ad_spoken": ad_spoken,
+                "bs_spoken": bs_spoken,
+                "full_spoken": f"{bs_spoken}, तदनुसार {ad_spoken}।"
             }
         except Exception:
             pass
