@@ -200,13 +200,8 @@ with sync_playwright() as p:
                         total_s = int(T * SR)
                         timeline = np.zeros(total_s, dtype=np.float32)
 
-                        for s_info in sec.get("signs", []):
-                            si = s_info.get("si", 0)
-                            p = out / f"_voice_{si+1:02d}.wav"
-                            if not p.exists():
-                                print(f"  ⚠️  {p.name} भेटिएन, skip.", flush=True)
-                                continue
-                            sr, data = wavfile.read(str(p))
+                        def load_and_resample(file_path):
+                            sr, data = wavfile.read(str(file_path))
                             if data.dtype == np.int16:
                                 data = data.astype(np.float32) / 32768.0
                             elif data.dtype == np.int32:
@@ -217,15 +212,57 @@ with sync_playwright() as p:
                                 data = data.mean(axis=1)
                             if sr != SR:
                                 data = sig_resample(data, int(len(data) * SR / sr))
+                            return data
 
-                            # राशि slide सुरु भएको 2 sec पछि बोल्ने
-                            start_idx = int((s_info.get("S", 0.0) + 2.0) * SR)
+                        # १. इन्ट्रो भ्वाइस (Intro Voice)
+                        p_intro = out / "_voice_intro.wav"
+                        if p_intro.exists() and sec.get("intro") is not None:
+                            try:
+                                data_intro = load_and_resample(p_intro)
+                                s_intro_idx = int(sec["intro"] * SR)
+                                e_intro_idx = min(total_s, s_intro_idx + len(data_intro))
+                                if 0 <= s_intro_idx < total_s:
+                                    timeline[s_intro_idx:e_intro_idx] += data_intro[:e_intro_idx - s_intro_idx]
+                                    synced = True
+                                    print(f"  ✓ इन्ट्रो (Intro): start={sec['intro']:.1f}s, dur={len(data_intro)/SR:.1f}s", flush=True)
+                            except Exception as e:
+                                print(f"  ⚠️  इन्ट्रो अडियो लोड त्रुटि: {e}", flush=True)
+
+                        # २. १२ राशिको भ्वाइस (Signs 1..12 Voice)
+                        for s_info in sec.get("signs", []):
+                            si = s_info.get("si", 0)
+                            p = out / f"_voice_{si+1:02d}.wav"
+                            if not p.exists():
+                                print(f"  ⚠️  {p.name} भेटिएन, skip.", flush=True)
+                                continue
+                            data = load_and_resample(p)
+
+                            # यदि अडियो स्क्रिन-सिङ्क्ड छ (लम्बाइ > १५ सेकेन्ड वा इन्ट्रो छ) भने S बाटै सुरु, अन्यथा पुरानो +२ सेकेन्ड
+                            sign_dur_s = len(data) / SR
+                            is_synced_track = sign_dur_s >= (s_info.get("c0", 0.0) - s_info.get("S", 0.0) + 2.0)
+                            start_sec = s_info.get("S", 0.0) if is_synced_track else (s_info.get("S", 0.0) + 2.0)
+
+                            start_idx = int(start_sec * SR)
                             end_idx = min(total_s, start_idx + len(data))
                             if 0 <= start_idx < total_s:
                                 chunk = data[:end_idx - start_idx]
                                 timeline[start_idx:end_idx] += chunk
                                 synced = True
-                                print(f"  ✓ राशि {si+1:02d}: t={s_info.get('S',0):.1f}s + 2.0s = start {start_idx/SR:.1f}s, dur={len(chunk)/SR:.1f}s", flush=True)
+                                print(f"  ✓ राशि {si+1:02d}: start={start_sec:.1f}s, dur={len(chunk)/SR:.1f}s (synced={is_synced_track})", flush=True)
+
+                        # ३. आउट्रो भ्वाइस (Outro Voice)
+                        p_outro = out / "_voice_outro.wav"
+                        if p_outro.exists() and sec.get("out") is not None:
+                            try:
+                                data_outro = load_and_resample(p_outro)
+                                s_out_idx = int(sec["out"] * SR)
+                                e_out_idx = min(total_s, s_out_idx + len(data_outro))
+                                if 0 <= s_out_idx < total_s:
+                                    timeline[s_out_idx:e_out_idx] += data_outro[:e_out_idx - s_out_idx]
+                                    synced = True
+                                    print(f"  ✓ आउट्रो (Outro): start={sec['out']:.1f}s, dur={len(data_outro)/SR:.1f}s", flush=True)
+                            except Exception as e:
+                                print(f"  ⚠️  आउट्रो अडियो लोड त्रुटि: {e}", flush=True)
 
                         if synced:
                             peak = np.max(np.abs(timeline))

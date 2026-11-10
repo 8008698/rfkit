@@ -13,11 +13,102 @@ permissions:
   contents: write
 
 jobs:
-  daily:
+  # ── १. API बाट आजको राशिफल सामग्री तयार गर्ने ──
+  fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      COQUI_TOS_AGREED: "1"
+    timeout-minutes: 15
+    outputs:
+      target_date: ${{ steps.stamp.outputs.target_date }}
+      stamp: ${{ steps.stamp.outputs.stamp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install nepali-datetime
+
+      - name: Fetch today's rashifal content
+        env:
+          NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
+          NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          fi
+          python daily.py --dry --out videos $DATE_ARG
+
+      - id: stamp
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            TARGET_DATE="${{ github.event.inputs.date }}"
+          else
+            TARGET_DATE=$(TZ="Asia/Kathmandu" date +%Y-%m-%d)
+          fi
+          STAMP=$(TZ="Asia/Kathmandu" date +%Y%m%d-%H%M)
+          echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
+          echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
+
+      - name: Upload content.today.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-today
+          path: content.today.json
+          retention-days: 1
+
+  # ── २. Voice TTS — OmniVoice समानान्तर प्रोसेसिङ (4 Shards in Parallel) ──
+  voice:
+    needs: fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download content.today.json
+        uses: actions/download-artifact@v4
+        with:
+          name: content-today
+
+      - name: Install PyTorch (CPU) & OmniVoice
+        run: |
+          pip install "torch>=2.2.0" "torchaudio>=2.2.0" --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=4.40.0" accelerate peft soundfile numpy scipy
+          pip install git+https://github.com/k2-fsa/OmniVoice.git
+
+      - name: Generate synchronized voice shard (${{ matrix.shard }}/4)
+        run: |
+          python voice_omnivoice.py content.today.json \
+            --out videos \
+            --shard ${{ matrix.shard }}/4 \
+            --instruct "male, young adult, moderate pitch" \
+            --seed 253 \
+            --speed 0.95 \
+            --guidance 1.4 \
+            --lang npi
+
+      - name: Upload voice shard ${{ matrix.shard }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-shard-${{ matrix.shard }}
+          path: videos/_voice_*.wav
+          retention-days: 1
+
+  # ── ३. भिडियो रेन्डर र रिलिज (Video + Synced Voiceover) ──
+  render:
+    needs: [fetch, voice]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -35,35 +126,24 @@ jobs:
           pip install "numpy<2" "scipy<1.14" playwright nepali-datetime
           python -m playwright install --with-deps chromium
 
-      - name: Install TTS + PyTorch (CPU)
-        run: |
-          pip install "transformers<4.46" TTS "torch==2.5.1" "torchaudio==2.5.1" --extra-index-url https://download.pytorch.org/whl/cpu
+      - name: Download content.today.json
+        uses: actions/download-artifact@v4
+        with:
+          name: content-today
 
-      # ── 1. API बाट आजको राशिफल content.today.json मा बनाउने ──
-      - name: Fetch today's rashifal content
-        env:
-          NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
-          NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
-        run: |
-          DATE_ARG=""
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            DATE_ARG="--date ${{ github.event.inputs.date }}"
-          fi
-          python daily.py --dry --out videos $DATE_ARG
+      - name: Download all voice shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voice-shard-*
+          path: videos
+          merge-multiple: true
 
-      # ── 2. Voice TTS — तपाईंकै आवाजमा १२ राशिको अडियो बनाउने ──
-      - name: Generate voiceover (XTTS-v2 voice clone)
+      - name: Verify downloaded voice files
         run: |
-          python voice_tts.py content.today.json \
-            --out videos \
-            --voice assets/voice_sample.wav \
-            --lang hi \
-            --speed 0.92
-          echo "✅ Voice WAV files generated:"
-          ls -lh videos/_voice_*.wav 2>/dev/null || echo "⚠️  No voice WAV files found!"
+          echo "🎙️ Generated Voice WAV Files:"
+          ls -lh videos/_voice_*.wav
 
-      # ── 3. भिडियो रेन्डर (voice_tts ले बनाएको WAV लाई render.py ले उठाउँछ) ──
-      - name: Render video with voiceover
+      - name: Render video with synchronized voiceover
         env:
           NEPDATE_API_KEY: ${{ secrets.NEPDATE_API_KEY }}
           NEPDATE_API_URL: ${{ secrets.NEPDATE_API_URL }}
@@ -74,21 +154,10 @@ jobs:
           fi
           python daily.py --out videos --no-fetch $DATE_ARG
 
-      - id: stamp
-        run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            TARGET_DATE="${{ github.event.inputs.date }}"
-          else
-            TARGET_DATE=$(TZ="Asia/Kathmandu" date +%Y-%m-%d)
-          fi
-          STAMP=$(TZ="Asia/Kathmandu" date +%Y%m%d-%H%M)
-          echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
-          echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
-
       - name: Clean up old videos if date is not today Nepal date
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_DATE: ${{ steps.stamp.outputs.target_date }}
+          TARGET_DATE: ${{ needs.fetch.outputs.target_date }}
         run: |
           python cleanup_old_releases.py
 
@@ -101,6 +170,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: rashifal-${{ steps.stamp.outputs.target_date }}
-          name: आजको राशिफल भिडियो (${{ steps.stamp.outputs.target_date }})
+          tag_name: rashifal-${{ needs.fetch.outputs.target_date }}
+          name: आजको राशिफल भिडियो (${{ needs.fetch.outputs.target_date }})
           files: videos/*.mp4
